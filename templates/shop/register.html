@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}สมัครสมาชิก{% endblock %}
+{% block content %}
+<div class="container py-4 py-lg-5">
+  <div class="auth-card">
+    <h1 class="section-title mb-4">สมัครสมาชิก</h1>
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      {% for field in form %}{% include 'shop/_field.html' %}{% endfor %}
+      <button class="btn btn-primary w-100 mt-2" style="height:52px">สมัครสมาชิก</button>
+    </form>
+    <p class="text-center mt-4 mb-0">มีบัญชีอยู่แล้ว? <a class="fw-bold" href="{% url 'shop:login' %}{% if next %}?next={{ next|urlencode }}{% endif %}">เข้าสู่ระบบ</a></p>
+  </div>
+</div>
+{% endblock %}

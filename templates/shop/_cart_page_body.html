@@ -1,0 +1,29 @@
+{% load shop_extras %}
+{% if cart.is_empty %}
+  <div class="empty-state">
+    <div class="disc">{% icon 'cart' 44 %}</div>
+    <h5 class="fw-bold">ตะกร้าของคุณยังว่างอยู่</h5>
+    <p class="text-muted-2">เลือกสินค้าที่ถูกใจแล้วเพิ่มลงในตะกร้าได้เลย</p>
+    <a href="{% url 'shop:product_list' %}" class="btn btn-primary px-4">เลือกซื้อสินค้า</a>
+  </div>
+{% else %}
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div class="border rounded-4 px-3">
+        {% for line in cart %}{% include 'shop/_cart_line.html' with line=line %}{% endfor %}
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="summary-card">
+        <h5 class="fw-bold mb-3">สรุปคำสั่งซื้อ</h5>
+        <div class="summary-row"><span>จำนวนสินค้า</span><span>{{ cart|length }} ชิ้น</span></div>
+        {% if cart.savings %}<div class="summary-row text-accent"><span>ประหยัดไปแล้ว</span><span>{{ cart.savings|baht }} บาท</span></div>{% endif %}
+        <div class="summary-row"><span>ราคาสินค้า</span><span>{{ cart.subtotal|baht }} บาท</span></div>
+        <div class="summary-row"><span>ค่าจัดส่ง</span><span>{% if cart.shipping_fee %}{{ cart.shipping_fee|baht }} บาท{% else %}ฟรี{% endif %}</span></div>
+        {% if cart.free_shipping_gap %}<div class="ship-note my-2">ซื้อเพิ่มอีก {{ cart.free_shipping_gap|baht }} บาท รับฟรีค่าจัดส่ง</div>{% endif %}
+        <div class="summary-row summary-total"><span>รวมทั้งหมด</span><span>{{ cart.total|baht }} บาท</span></div>
+        <a href="{% url 'shop:checkout' %}" class="btn btn-primary w-100 mt-3" style="height:52px;display:flex;align-items:center;justify-content:center">ดำเนินการชำระเงิน</a>
+      </div>
+    </div>
+  </div>
+{% endif %}

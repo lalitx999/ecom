@@ -1,0 +1,64 @@
+{% extends 'dashboard/base.html' %}
+{% load shop_extras %}
+{% block title %}แดชบอร์ด{% endblock %}
+{% block heading %}แดชบอร์ด{% endblock %}
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3"><div class="stat"><div class="label">{% icon 'bar-chart' 18 %} ยอดขายวันนี้</div><div class="value">{{ today.revenue|baht }}</div><div class="sub">{{ today.orders }} คำสั่งซื้อ</div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat"><div class="label">{% icon 'bar-chart' 18 %} ยอดขาย 30 วัน</div><div class="value">{{ month.revenue|baht }}</div>
+    <div class="sub">{{ month.orders }} คำสั่งซื้อ{% if delta is not None %} | <span class="{% if delta >= 0 %}up{% else %}down{% endif %}">{% if delta >= 0 %}+{% endif %}{{ delta }}%</span> จาก 30 วันก่อน{% endif %}</div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat"><div class="label">{% icon 'tag' 18 %} ยอดเฉลี่ยต่อออเดอร์</div><div class="value">{{ month.aov|baht }}</div><div class="sub">ช่วง 30 วันล่าสุด</div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat"><div class="label">{% icon 'users' 18 %} ลูกค้าทั้งหมด</div><div class="value">{{ customers|baht }}</div><div class="sub">บัญชีที่ไม่ใช่ผู้ดูแล</div></div></div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-4"><a class="stat" href="{% url 'dashboard:orders' %}?status=processing"><div class="label">{% icon 'package' 18 %} รอจัดส่ง</div><div class="value">{{ to_process }}</div><div class="sub">กำลังเตรียมสินค้า</div></a></div>
+  <div class="col-12 col-md-4"><a class="stat" href="{% url 'dashboard:orders' %}?status=pending_payment"><div class="label">{% icon 'file-text' 18 %} รอชำระเงิน</div><div class="value">{{ pending_payment }}</div><div class="sub">{% if slips_waiting %}แนบสลิปแล้ว {{ slips_waiting }} รายการ รอตรวจสอบ{% else %}ยังไม่มีสลิปรอตรวจ{% endif %}</div></a></div>
+  <div class="col-12 col-md-4"><a class="stat {% if low_stock_count %}alert-stat{% endif %}" href="{% url 'dashboard:products' %}?state=low"><div class="label">{% icon 'alert' 18 %} สินค้าใกล้หมด</div><div class="value">{{ low_stock_count }}</div><div class="sub">เหลือ {{ LOW_STOCK }} ชิ้นหรือน้อยกว่า</div></a></div>
+</div>
+
+<div class="panel mb-4">
+  <div class="panel-head"><h2>ยอดขายรายวัน (30 วันล่าสุด)</h2><a class="btn btn-outline-primary btn-sm" href="{% url 'dashboard:reports' %}">ดูรายงาน</a></div>
+  <div class="panel-body">
+    <div class="bars" role="img" aria-label="กราฟแท่งยอดขายรายวัน">
+      {% for r in series %}<div class="bar{% if not r.pct %} zero{% endif %}" style="height:{{ r.pct }}%" title="{{ r.label|date:'j M' }}: {{ r.revenue|baht }} บาท ({{ r.orders }} ออเดอร์)"></div>{% endfor %}
+    </div>
+    <div class="bar-axis"><span>{{ range_start|date:"j M" }}</span><span>{{ range_end|date:"j M" }}</span></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="panel h-100">
+      <div class="panel-head"><h2>คำสั่งซื้อล่าสุด</h2><a href="{% url 'dashboard:orders' %}" class="see-all">ทั้งหมด {% icon 'chevron-right' 16 %}</a></div>
+      <div class="table-responsive"><table class="table table-hover">
+        <thead><tr><th>เลขที่</th><th>ลูกค้า</th><th>สถานะ</th><th class="num">ยอดรวม</th></tr></thead>
+        <tbody>
+          {% for o in recent_orders %}
+          <tr><td><a class="fw-bold" href="{% url 'dashboard:order_detail' o.number %}">{{ o.number }}</a><div class="cell-sub">{{ o.created_at|date:"j M H:i" }}</div></td>
+            <td>{{ o.full_name }}</td><td><span class="status-pill status-{{ o.status }}">{{ o.get_status_display }}</span></td><td class="num fw-bold">{{ o.total|baht }}</td></tr>
+          {% empty %}<tr><td colspan="4" class="empty-row">ยังไม่มีคำสั่งซื้อ</td></tr>{% endfor %}
+        </tbody></table></div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="panel mb-3">
+      <div class="panel-head"><h2>สินค้าขายดี (30 วัน)</h2></div>
+      <div class="table-responsive"><table class="table">
+        <tbody>
+          {% for p in top_products %}<tr><td class="cell-name">{{ p.name }}</td><td class="num cell-sub">{{ p.qty }} ชิ้น</td><td class="num fw-bold">{{ p.revenue|baht }}</td></tr>
+          {% empty %}<tr><td class="empty-row">ยังไม่มีข้อมูลการขาย</td></tr>{% endfor %}
+        </tbody></table></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>สต็อกใกล้หมด</h2><a href="{% url 'dashboard:products' %}?state=low" class="see-all">ทั้งหมด {% icon 'chevron-right' 16 %}</a></div>
+      <div class="table-responsive"><table class="table">
+        <tbody>
+          {% for p in low_stock %}<tr><td><a class="cell-name" href="{% url 'dashboard:product_edit' p.pk %}">{{ p.name }}</a></td><td class="num">{% if p.stock == 0 %}<span class="tag red">หมด</span>{% else %}<span class="tag yellow">เหลือ {{ p.stock }}</span>{% endif %}</td></tr>
+          {% empty %}<tr><td class="empty-row">สต็อกทุกรายการเพียงพอ</td></tr>{% endfor %}
+        </tbody></table></div>
+    </div>
+  </div>
+</div>
+<p class="cell-sub mt-3">ยอดขาย = คำสั่งซื้อที่ไม่ถูกยกเลิก (รวมค่าจัดส่ง) นับตามวันที่สั่งซื้อ</p>
+{% endblock %}

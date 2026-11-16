@@ -1,0 +1,15 @@
+{% autoescape off %}{{ heading }}
+
+{% for p in intro %}{{ p }}
+{% endfor %}{% if items %}
+รายการสินค้า
+{% for name, qty, total in items %}- {{ name }} x {{ qty }}  {{ total }} บาท
+{% endfor %}{% endif %}{% if rows %}
+{% for label, value in rows %}{{ label }}: {{ value }}
+{% endfor %}{% endif %}{% if address %}
+ที่อยู่จัดส่ง
+{{ address }}
+{% endif %}{% if button %}
+{{ button.0 }}: {{ button.1 }}
+{% endif %}
+-- {{ site_name }} ({{ site_url }}){% endautoescape %}

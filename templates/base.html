@@ -1,0 +1,178 @@
+{% load static shop_extras %}<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>{% block title %}{{ SITE_NAME }}{% endblock %} | {{ SITE_NAME }}</title>
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap/css/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'css/shop.css' %}">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+
+{% block header %}
+<header class="site-header">
+  <div class="container pt-3">
+    <div class="d-flex align-items-center justify-content-between gap-3">
+      <a href="{% url 'shop:home' %}" class="d-flex align-items-center gap-3 text-decoration-none">
+        <span class="brand-logo">{{ SITE_NAME }}</span>
+        <span class="brand-greet d-none d-sm-block">ยินดีต้อนรับสู่{{ SITE_NAME }}<br>เลือกสินค้าที่คุณชอบได้เลย</span>
+      </a>
+      <div class="d-flex align-items-center gap-1">
+        <a href="{% if user.is_authenticated %}{% url 'shop:orders' %}{% else %}{% url 'shop:login' %}{% endif %}" class="header-action" aria-label="{% if user.is_authenticated %}คำสั่งซื้อของฉัน{% else %}เข้าสู่ระบบ{% endif %}">{% icon 'user' 28 %}<span class="label">{% if user.is_authenticated %}บัญชี{% else %}เข้าสู่ระบบ{% endif %}</span></a>
+        <button type="button" class="header-action" aria-label="การแจ้งเตือน">{% icon 'bell' 28 %}</button>
+        <button type="button" class="header-action js-open-cart" data-bs-toggle="offcanvas" data-bs-target="#cartDrawer" aria-label="ตะกร้าสินค้า">
+          {% icon 'cart' 28 %}
+          <span class="cart-badge" data-cart-count data-count="{{ cart|length }}">{{ cart|length }}</span>
+        </button>
+        <button type="button" class="header-action" aria-label="ภาษา">{% icon 'globe' 28 %}<span class="label">TH</span></button>
+      </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-2 mt-3">
+      <button type="button" class="menu-btn" data-bs-toggle="offcanvas" data-bs-target="#menuDrawer" aria-label="เมนูหมวดหมู่">{% icon 'menu' 26 %}</button>
+      <nav class="chip-row" aria-label="หมวดหมู่">
+        {% for c in nav_categories %}
+          <a class="chip{% if category and category.pk == c.pk %} active{% endif %}" href="{% url 'shop:product_list' %}?category={{ c.slug }}">{{ c.name }}</a>
+        {% endfor %}
+      </nav>
+    </div>
+
+    <form class="search-box mt-3" action="{% url 'shop:product_list' %}" method="get" role="search">
+      {% icon 'search' 26 %}
+      <input type="search" name="q" value="{{ q|default:'' }}" class="form-control" placeholder="ค้นหาสินค้า" aria-label="ค้นหาสินค้า">
+    </form>
+  </div>
+  <div class="header-curve mt-3"></div>
+</header>
+{% endblock %}
+
+{% if messages %}
+<div class="container pt-3">
+  {% for m in messages %}<div class="flash {% if m.tags == 'error' %}flash-error{% endif %}" role="alert">{{ m }}</div>{% endfor %}
+</div>
+{% endif %}
+<main>{% block content %}{% endblock %}</main>
+
+{% block footer %}
+<footer class="site-footer mt-5">
+  <div class="container footer-main">
+    <div class="row g-4 g-lg-5">
+      <div class="col-12 col-lg-4">
+        <a href="{% url 'shop:home' %}" class="brand-logo footer-logo">{{ SITE_NAME }}</a>
+        {% if CONTACT.tagline %}<p class="footer-tagline">{{ CONTACT.tagline }}</p>{% endif %}
+        <ul class="footer-contact">
+          {% if CONTACT.phone %}<li>{% icon 'phone' 18 %}<a href="tel:{{ CONTACT.phone|cut:' '|cut:'-' }}">{{ CONTACT.phone }}</a></li>{% endif %}
+          {% if CONTACT.email %}<li>{% icon 'mail' 18 %}<a href="mailto:{{ CONTACT.email }}">{{ CONTACT.email }}</a></li>{% endif %}
+          {% if CONTACT.line_id or CONTACT.line_url %}<li>{% icon 'message' 18 %}{% if CONTACT.line_url %}<a href="{{ CONTACT.line_url }}" target="_blank" rel="noopener">LINE {{ CONTACT.line_id }}</a>{% else %}<span>LINE {{ CONTACT.line_id }}</span>{% endif %}</li>{% endif %}
+          {% if CONTACT.hours %}<li>{% icon 'clock' 18 %}<span>{{ CONTACT.hours }}</span></li>{% endif %}
+          {% if CONTACT.address %}<li>{% icon 'map-pin' 18 %}<span>{{ CONTACT.address|linebreaksbr }}</span></li>{% endif %}
+        </ul>
+        {% if CONTACT.facebook or CONTACT.instagram or CONTACT.tiktok %}
+        <div class="footer-social">
+          {% if CONTACT.facebook %}<a href="{{ CONTACT.facebook }}" target="_blank" rel="noopener">Facebook</a>{% endif %}
+          {% if CONTACT.instagram %}<a href="{{ CONTACT.instagram }}" target="_blank" rel="noopener">Instagram</a>{% endif %}
+          {% if CONTACT.tiktok %}<a href="{{ CONTACT.tiktok }}" target="_blank" rel="noopener">TikTok</a>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="col-6 col-lg-2">
+        <h2 class="footer-title">ช้อปปิ้ง</h2>
+        <ul class="footer-links">
+          <li><a href="{% url 'shop:product_list' %}">สินค้าทั้งหมด</a></li>
+          <li><a href="{% url 'shop:product_list' %}?filter=sale">โปรโมชั่น</a></li>
+          <li><a href="{% url 'shop:product_list' %}?filter=best">สินค้าขายดี</a></li>
+          <li><a href="{% url 'shop:product_list' %}?filter=new">สินค้าใหม่</a></li>
+        </ul>
+      </div>
+
+      <div class="col-6 col-lg-3">
+        <h2 class="footer-title">หมวดหมู่สินค้า</h2>
+        <ul class="footer-links">
+          {% for c in nav_categories %}<li><a href="{% url 'shop:product_list' %}?category={{ c.slug }}">{{ c.name }}</a></li>{% endfor %}
+        </ul>
+      </div>
+
+      <div class="col-12 col-lg-3">
+        <h2 class="footer-title">บัญชีและการสั่งซื้อ</h2>
+        <ul class="footer-links">
+          {% if user.is_authenticated %}
+            <li><a href="{% url 'shop:orders' %}">คำสั่งซื้อของฉัน</a></li>
+          {% else %}
+            <li><a href="{% url 'shop:login' %}">เข้าสู่ระบบ</a></li>
+            <li><a href="{% url 'shop:register' %}">สมัครสมาชิก</a></li>
+            <li><a href="{% url 'shop:password_reset' %}">ลืมรหัสผ่าน</a></li>
+          {% endif %}
+          <li><a href="{% url 'shop:cart' %}">ตะกร้าสินค้า</a></li>
+          {% if user.is_staff %}<li><a href="{% url 'dashboard:home' %}">จัดการร้าน</a></li>{% endif %}
+        </ul>
+        <ul class="footer-facts">
+          <li>{% icon 'truck' 18 %}<span>ค่าจัดส่ง {{ SHIPPING_FEE }} บาท ส่งฟรีเมื่อซื้อครบ {{ FREE_SHIPPING_THRESHOLD }} บาท</span></li>
+          <li>{% icon 'tag' 18 %}<span>ชำระเงินได้ทั้งเก็บเงินปลายทางและโอนเงิน/พร้อมเพย์</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="container d-flex flex-wrap justify-content-between gap-2">
+      <span>&copy; {% now 'Y' %} {{ SITE_NAME }} สงวนลิขสิทธิ์</span>
+    </div>
+  </div>
+</footer>
+{% endblock %}
+
+{% block tabbar %}
+{% with name=request.resolver_match.url_name flt=request.GET.filter %}
+<nav class="tabbar d-lg-none" aria-label="เมนูหลัก">
+  <a href="{% url 'shop:home' %}" class="{% if name == 'home' %}active{% endif %}">{% icon 'home' 28 %}<span>หน้าหลัก</span></a>
+  <a href="{% url 'shop:product_list' %}" class="{% if name == 'product_list' and not flt and not request.GET.q %}active{% endif %}">{% icon 'grid' 28 %}<span>สินค้า</span></a>
+  <a href="{% url 'shop:product_list' %}?filter=sale" class="{% if flt == 'sale' %}active{% endif %}">
+    <span class="center-btn">{% icon 'percent' 30 %}</span><span class="center-label">โปรโมชั่น</span>
+  </a>
+  <a href="{% url 'shop:product_list' %}?filter=best" class="{% if flt == 'best' %}active{% endif %}">{% icon 'star' 28 %}<span>ขายดี</span></a>
+  <a href="{% url 'shop:cart' %}" class="{% if name == 'cart' %}active{% endif %}">
+    {% icon 'cart' 28 %}<span>ตะกร้า</span>
+    <span class="cart-badge" data-cart-count data-count="{{ cart|length }}">{{ cart|length }}</span>
+  </a>
+</nav>
+{% endwith %}
+{% endblock %}
+
+<!-- Category menu -->
+<div class="offcanvas offcanvas-start" tabindex="-1" id="menuDrawer" aria-labelledby="menuDrawerLabel">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title fw-bold" id="menuDrawerLabel">หมวดหมู่สินค้า</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="ปิด"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div class="list-group list-group-flush">
+      <a class="list-group-item list-group-item-action fw-semibold" href="{% url 'shop:product_list' %}">สินค้าทั้งหมด</a>
+      <a class="list-group-item list-group-item-action fw-semibold" href="{% url 'shop:product_list' %}?filter=sale">โปรโมชั่น</a>
+      <a class="list-group-item list-group-item-action fw-semibold" href="{% url 'shop:product_list' %}?filter=best">สินค้าขายดี</a>
+      <a class="list-group-item list-group-item-action fw-semibold" href="{% url 'shop:product_list' %}?filter=new">สินค้าใหม่</a>
+      {% for c in nav_categories %}
+        <a class="list-group-item list-group-item-action" href="{% url 'shop:product_list' %}?category={{ c.slug }}">{{ c.name }}</a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Cart drawer (filled and refreshed by Ajax) -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="cartDrawer" aria-labelledby="cartDrawerLabel">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title fw-bold" id="cartDrawerLabel">ตะกร้าสินค้า</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="ปิด"></button>
+  </div>
+  <div class="offcanvas-body p-0 d-flex flex-column">
+    <div id="cart-drawer-body">{% include 'shop/_cart_drawer.html' %}</div>
+  </div>
+</div>
+
+<div class="toast-container position-fixed top-0 end-0 p-3" id="toastHost"></div>
+
+<script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'js/shop.js' %}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

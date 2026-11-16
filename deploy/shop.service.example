@@ -1,0 +1,15 @@
+# /etc/systemd/system/shop.service
+[Unit]
+Description=Lume shop (gunicorn)
+After=network.target postgresql.service
+
+[Service]
+User=shop
+Group=shop
+WorkingDirectory=/srv/shop
+EnvironmentFile=/srv/shop/.env
+ExecStart=/srv/shop/.venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8000 --workers 3 --access-logfile -
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

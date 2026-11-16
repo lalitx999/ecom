@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="th"><body style="margin:0;padding:0;background:#f4f4f8;font-family:-apple-system,'Sukhumvit Set',Thonburi,'Noto Sans Thai',Arial,sans-serif;color:#0b0b5c">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f4f8"><tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="560" cellspacing="0" cellpadding="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:12px">
+  <tr><td style="background:#0b0b5c;color:#ffffff;padding:20px 28px;border-radius:12px 12px 0 0;font-size:26px;font-weight:bold;font-style:italic;font-family:Georgia,serif">{{ site_name }}</td></tr>
+  <tr><td style="padding:28px">
+    <h1 style="margin:0 0 12px;font-size:22px">{{ heading }}</h1>
+    {% for p in intro %}<p style="margin:0 0 12px;line-height:1.6">{{ p }}</p>{% endfor %}
+    {% if items %}<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:16px 0;border-top:1px solid #e2e2ea">
+      {% for name, qty, total in items %}<tr><td style="padding:10px 0;border-bottom:1px solid #e2e2ea">{{ name }}<br><span style="color:#6c6c80;font-size:13px">จำนวน {{ qty }}</span></td><td align="right" style="padding:10px 0;border-bottom:1px solid #e2e2ea;white-space:nowrap">{{ total }} บาท</td></tr>{% endfor %}
+    </table>{% endif %}
+    {% if rows %}<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:12px 0">
+      {% for label, value in rows %}<tr><td style="padding:4px 0;color:#6c6c80">{{ label }}</td><td align="right" style="padding:4px 0;font-weight:bold">{{ value }}</td></tr>{% endfor %}
+    </table>{% endif %}
+    {% if address %}<p style="margin:16px 0 4px;font-weight:bold">ที่อยู่จัดส่ง</p><p style="margin:0;line-height:1.6;white-space:pre-line">{{ address }}</p>{% endif %}
+    {% if button %}<p style="margin:24px 0 0"><a href="{{ button.1 }}" style="display:inline-block;background:#0b0b5c;color:#ffffff;text-decoration:none;font-weight:bold;padding:14px 28px;border-radius:30px">{{ button.0 }}</a></p>{% endif %}
+  </td></tr>
+  <tr><td style="padding:16px 28px 24px;color:#6c6c80;font-size:12px">อีเมลนี้ส่งโดยอัตโนมัติจาก {{ site_name }}</td></tr>
+</table></td></tr></table></body></html>

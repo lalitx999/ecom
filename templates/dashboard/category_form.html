@@ -1,0 +1,11 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}{% if category %}แก้ไขหมวดหมู่{% else %}เพิ่มหมวดหมู่{% endif %}{% endblock %}
+{% block heading %}{% if category %}แก้ไขหมวดหมู่{% else %}เพิ่มหมวดหมู่{% endif %}{% endblock %}
+{% block content %}
+<div class="panel" style="max-width:620px"><div class="panel-body">
+  <form method="post" novalidate>{% csrf_token %}
+    {% for field in form %}{% include 'shop/_field.html' %}{% if field.help_text %}<div class="cell-sub" style="margin-top:-.75rem;margin-bottom:1rem">{{ field.help_text }}</div>{% endif %}{% endfor %}
+    <div class="d-flex gap-2"><button class="btn btn-primary px-4">บันทึก</button><a href="{% url 'dashboard:categories' %}" class="btn btn-outline-primary px-4">ยกเลิก</a></div>
+  </form>
+</div></div>
+{% endblock %}

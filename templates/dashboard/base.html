@@ -1,0 +1,61 @@
+{% load static shop_extras %}<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>{% block title %}จัดการร้าน{% endblock %} | {{ SITE_NAME }} Admin</title>
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap/css/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'css/shop.css' %}">
+  <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+</head>
+<body class="adm-body">
+{% with n=request.resolver_match.url_name %}
+<aside class="adm-side offcanvas-lg offcanvas-start" tabindex="-1" id="admSide" aria-label="เมนูจัดการ">
+  <div class="offcanvas-header d-lg-none">
+    <span class="adm-brand">{{ SITE_NAME }}</span>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" data-bs-target="#admSide" aria-label="ปิด"></button>
+  </div>
+  <div class="offcanvas-body flex-column p-3 p-lg-3">
+    <a href="{% url 'dashboard:home' %}" class="adm-brand d-none d-lg-block px-2 py-3">{{ SITE_NAME }}<small>ระบบจัดการร้านค้า</small></a>
+    <ul class="adm-nav mt-lg-2">
+      <li><a href="{% url 'dashboard:home' %}" class="{% if n == 'home' %}active{% endif %}">{% icon 'home' 22 %} แดชบอร์ด</a></li>
+      <li><a href="{% url 'dashboard:orders' %}" class="{% if n == 'orders' or n == 'order_detail' %}active{% endif %}">{% icon 'file-text' 22 %} คำสั่งซื้อ{% if badge_orders %}<span class="nav-badge" title="รอจัดส่ง {{ badge_to_ship }} | รอตรวจสลิป {{ badge_slips }}">{{ badge_orders }}</span>{% endif %}</a></li>
+      <li><a href="{% url 'dashboard:products' %}" class="{% if n == 'products' or n == 'product_new' or n == 'product_edit' or n == 'product_delete' %}active{% endif %}">{% icon 'package' 22 %} สินค้า</a></li>
+      <li><a href="{% url 'dashboard:categories' %}" class="{% if n == 'categories' or n == 'category_new' or n == 'category_edit' or n == 'category_delete' %}active{% endif %}">{% icon 'folder' 22 %} หมวดหมู่</a></li>
+      {% if user.is_superuser %}
+      <li><a href="{% url 'dashboard:users' %}" class="{% if n == 'users' or n == 'user_new' or n == 'user_edit' or n == 'user_password' or n == 'user_delete' %}active{% endif %}">{% icon 'users' 22 %} ผู้ใช้</a></li>
+      {% endif %}
+      <li><a href="{% url 'dashboard:reports' %}" class="{% if n == 'reports' %}active{% endif %}">{% icon 'bar-chart' 22 %} รายงานยอดขาย</a></li>
+      <li class="sep"></li>
+      <li><a href="{% url 'shop:home' %}" target="_blank" rel="noopener">{% icon 'cart' 22 %} ดูหน้าร้าน</a></li>
+      <li>
+        <form method="post" action="{% url 'shop:logout' %}">{% csrf_token %}
+          <button class="adm-nav-btn w-100 border-0 bg-transparent text-white d-flex align-items-center gap-3 fw-semibold text-start" style="padding:.7rem .9rem">{% icon 'log-out' 22 %} ออกจากระบบ</button>
+        </form>
+      </li>
+    </ul>
+  </div>
+</aside>
+
+<div class="adm-main">
+  <header class="adm-top">
+    <div class="d-flex align-items-center gap-3 px-3 px-lg-4 py-3">
+      <button class="icon-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#admSide" aria-label="เปิดเมนู">{% icon 'menu' 20 %}</button>
+      <h1 class="flex-grow-1">{% block heading %}{% endblock %}</h1>
+      <div class="text-end d-none d-sm-block"><div class="fw-bold">{{ user.first_name|default:user.email }}</div><div class="cell-sub">{% if user.is_superuser %}ผู้ดูแลสูงสุด{% else %}ผู้ดูแลร้าน{% endif %}</div></div>
+    </div>
+  </header>
+  <div class="adm-content mx-auto">
+    {% for m in messages %}<div class="flash {% if m.tags == 'error' %}flash-error{% endif %}" role="alert">{{ m }}</div>{% endfor %}
+    {% block content %}{% endblock %}
+  </div>
+</div>
+{% endwith %}
+
+<div class="toast-container position-fixed top-0 end-0 p-3" id="toastHost"></div>
+<script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'js/dashboard.js' %}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

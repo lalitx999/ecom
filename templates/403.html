@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}ไม่มีสิทธิ์เข้าถึง{% endblock %}
+{% block content %}
+<div class="container py-5 text-center">
+  <h1 class="section-title mb-2">ไม่มีสิทธิ์เข้าถึงหน้านี้</h1>
+  <p class="text-muted-2">บัญชีของคุณไม่มีสิทธิ์ใช้งานส่วนนี้</p>
+  <a href="{% url 'shop:home' %}" class="btn btn-primary px-4">กลับหน้าร้าน</a>
+</div>
+{% endblock %}

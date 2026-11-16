@@ -1,0 +1,32 @@
+{% extends 'dashboard/base.html' %}
+{% load shop_extras %}
+{% block title %}คำสั่งซื้อ{% endblock %}
+{% block heading %}คำสั่งซื้อ{% endblock %}
+{% block content %}
+<div class="panel">
+  <div class="panel-head flex-wrap">
+    <form class="filters" method="get">
+      <div><label for="q">ค้นหา</label><input id="q" name="q" value="{{ f.q }}" class="form-control" placeholder="เลขที่ ชื่อ โทรศัพท์ อีเมล"></div>
+      <div><label for="status">สถานะ</label><select id="status" name="status" class="form-select"><option value="">ทั้งหมด</option>{% for v, l in statuses %}<option value="{{ v }}"{% if f.status == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+      <div><label for="payment">ชำระเงิน</label><select id="payment" name="payment" class="form-select"><option value="">ทั้งหมด</option>{% for v, l in payments %}<option value="{{ v }}"{% if f.payment == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+      <div><label for="from">ตั้งแต่</label><input id="from" type="date" name="from" value="{{ f.from|date:'Y-m-d' }}" class="form-control"></div>
+      <div><label for="to">ถึง</label><input id="to" type="date" name="to" value="{{ f.to|date:'Y-m-d' }}" class="form-control"></div>
+      <button class="btn btn-primary btn-sm" style="height:42px">กรอง</button>
+    </form>
+    <a class="btn btn-outline-primary" href="?{% if querystring %}{{ querystring }}&{% endif %}export=csv">{% icon 'download' 18 %} ส่งออก CSV</a>
+  </div>
+  <div class="table-responsive"><table class="table table-hover">
+    <thead><tr><th>เลขที่</th><th>ลูกค้า</th><th>ชำระเงิน</th><th>สถานะ</th><th class="num">ยอดรวม</th></tr></thead>
+    <tbody>
+      {% for o in page %}
+      <tr><td><a class="fw-bold" href="{% url 'dashboard:order_detail' o.number %}">{{ o.number }}</a><div class="cell-sub">{{ o.created_at|date:"j M Y H:i" }}</div></td>
+        <td><div class="cell-name">{{ o.full_name }}</div><div class="cell-sub">{{ o.phone }}</div></td>
+        <td>{{ o.get_payment_method_display }}</td>
+        <td><span class="status-pill status-{{ o.status }}">{{ o.get_status_display }}</span>{% if o.status == 'pending_payment' and o.payment_slip %} <span class="tag red">มีสลิป</span>{% endif %}{% if o.tracking_number %}<div class="cell-sub">{{ o.get_carrier_display }} {{ o.tracking_number }}</div>{% endif %}</td>
+        <td class="num fw-bold">{{ o.total|baht }}</td></tr>
+      {% empty %}<tr><td colspan="5" class="empty-row">ไม่พบคำสั่งซื้อ</td></tr>{% endfor %}
+    </tbody></table></div>
+  {% include 'dashboard/_pager.html' %}
+</div>
+<p class="cell-sub mt-2">{{ page.paginator.count }} รายการ</p>
+{% endblock %}

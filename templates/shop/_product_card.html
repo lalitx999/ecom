@@ -1,0 +1,25 @@
+{% load shop_extras %}
+<article class="product-card">
+  {% if not product.in_stock %}<span class="badge-sale badge-out">สินค้าหมด</span>
+  {% elif product.on_sale %}<span class="badge-sale">ลด {{ product.discount_percent }}%</span>
+  {% elif product.is_new %}<span class="badge-sale badge-new">ใหม่</span>{% endif %}
+  <a href="{{ product.get_absolute_url }}" class="thumb ratio ratio-1x1" tabindex="-1" aria-hidden="true">
+    <img src="{{ product.image_url }}" alt="" loading="lazy">
+  </a>
+  <div class="body">
+    {% if product.brand %}<div class="product-brand">{{ product.brand }}</div>{% endif %}
+    <a href="{{ product.get_absolute_url }}" class="product-name">{{ product.name }}</a>
+    <div class="product-size">{{ product.size|default:"&nbsp;" }}</div>
+    <div class="price-row">
+      <span class="price">{{ product.price|baht }} บาท</span>
+      {% if product.on_sale %}<span class="price-old">{{ product.compare_price|baht }}</span>{% endif %}
+    </div>
+    {% if product.in_stock %}
+      <button type="button" class="btn btn-outline-primary w-100 js-add-to-cart" data-product-id="{{ product.pk }}" data-qty="1">
+        {% icon 'plus' 18 %} เพิ่มลงในตะกร้า
+      </button>
+    {% else %}
+      <button type="button" class="btn btn-outline-primary w-100" disabled>สินค้าหมด</button>
+    {% endif %}
+  </div>
+</article>

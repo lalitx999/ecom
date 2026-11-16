@@ -1,0 +1,37 @@
+{% extends 'dashboard/base.html' %}
+{% load shop_extras %}
+{% block title %}ผู้ใช้{% endblock %}
+{% block heading %}ผู้ใช้{% endblock %}
+{% block content %}
+<div class="panel">
+  <div class="panel-head flex-wrap">
+    <form class="filters" method="get">
+      <div><label for="q">ค้นหา</label><input id="q" name="q" value="{{ q }}" class="form-control" placeholder="ชื่อหรืออีเมล"></div>
+      <div><label for="role">บทบาท</label><select id="role" name="role" class="form-select"><option value="">ทั้งหมด</option>
+        <option value="customer"{% if role == 'customer' %} selected{% endif %}>ลูกค้า</option><option value="staff"{% if role == 'staff' %} selected{% endif %}>ผู้ดูแลร้าน</option><option value="superuser"{% if role == 'superuser' %} selected{% endif %}>ผู้ดูแลสูงสุด</option></select></div>
+      <div><label for="status">สถานะ</label><select id="status" name="status" class="form-select"><option value="">ทั้งหมด</option>
+        <option value="active"{% if status == 'active' %} selected{% endif %}>ใช้งานอยู่</option><option value="inactive"{% if status == 'inactive' %} selected{% endif %}>ปิดใช้งาน</option></select></div>
+      <button class="btn btn-primary btn-sm" style="height:42px">กรอง</button>
+    </form>
+    <a href="{% url 'dashboard:user_new' %}" class="btn btn-primary">{% icon 'plus' 18 %} เพิ่มผู้ใช้</a>
+  </div>
+  <div class="table-responsive"><table class="table table-hover">
+    <thead><tr><th>ผู้ใช้</th><th>บทบาท</th><th>สถานะ</th><th class="num">ออเดอร์</th><th class="num">ยอดซื้อรวม</th><th>สมัครเมื่อ</th><th></th></tr></thead>
+    <tbody>
+      {% for u in page %}
+      <tr><td><div class="cell-name">{{ u.first_name|default:"-" }}{% if u.pk == user.pk %} <span class="tag">คุณ</span>{% endif %}</div><div class="cell-sub">{{ u.email }}</div></td>
+        <td>{% if u.is_superuser %}<span class="tag navy">ผู้ดูแลสูงสุด</span>{% elif u.is_staff %}<span class="tag yellow">ผู้ดูแลร้าน</span>{% else %}<span class="tag">ลูกค้า</span>{% endif %}</td>
+        <td>{% if u.is_active %}ใช้งานอยู่{% else %}<span class="tag red">ปิดใช้งาน</span>{% endif %}</td>
+        <td class="num">{{ u.order_count }}</td><td class="num">{{ u.spent|default:0|baht }}</td>
+        <td class="cell-sub">{{ u.date_joined|date:"j M Y" }}</td>
+        <td class="text-end text-nowrap">
+          <a class="icon-btn" href="{% url 'dashboard:user_edit' u.pk %}" aria-label="แก้ไข" title="แก้ไข">{% icon 'edit' 16 %}</a>
+          <a class="icon-btn" href="{% url 'dashboard:user_password' u.pk %}" aria-label="ตั้งรหัสผ่านใหม่" title="ตั้งรหัสผ่านใหม่">{% icon 'key' 16 %}</a>
+          {% if u.pk != user.pk %}<a class="icon-btn danger" href="{% url 'dashboard:user_delete' u.pk %}" aria-label="ลบ" title="ลบ">{% icon 'trash' 16 %}</a>{% endif %}
+        </td></tr>
+      {% empty %}<tr><td colspan="7" class="empty-row">ไม่พบผู้ใช้</td></tr>{% endfor %}
+    </tbody></table></div>
+  {% include 'dashboard/_pager.html' %}
+</div>
+<p class="cell-sub mt-2">{{ page.paginator.count }} บัญชี | ยอดซื้อรวมไม่นับคำสั่งซื้อที่ยกเลิก</p>
+{% endblock %}

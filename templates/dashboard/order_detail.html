@@ -1,0 +1,94 @@
+{% extends 'dashboard/base.html' %}
+{% load shop_extras %}
+{% block title %}คำสั่งซื้อ {{ order.number }}{% endblock %}
+{% block heading %}คำสั่งซื้อ {{ order.number }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 no-print">
+  <a href="{% url 'dashboard:orders' %}" class="text-muted-2 d-inline-flex align-items-center">{% icon 'chevron-left' 18 %} คำสั่งซื้อทั้งหมด</a>
+  <button type="button" class="btn btn-outline-primary btn-sm" onclick="window.print()">{% icon 'printer' 16 %} พิมพ์ใบจัดส่ง</button>
+</div>
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="panel mb-3">
+      <div class="panel-head"><h2>รายการสินค้า</h2><span class="status-pill status-{{ order.status }}">{{ order.get_status_display }}</span></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th>สินค้า</th><th class="num">ราคา</th><th class="num">จำนวน</th><th class="num">รวม</th></tr></thead>
+        <tbody>
+          {% for i in order.items.all %}
+          <tr><td><div class="d-flex align-items-center gap-3"><img class="thumb-sm" src="{{ i.image_url }}" alt=""><div><div class="cell-name">{{ i.name }}</div><div class="cell-sub">{{ i.size }}</div></div></div></td>
+            <td class="num">{{ i.unit_price|baht }}</td><td class="num">{{ i.qty }}</td><td class="num fw-bold">{{ i.line_total|baht }}</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr><td colspan="3" class="num text-muted-2">ราคาสินค้า</td><td class="num">{{ order.subtotal|baht }}</td></tr>
+          <tr><td colspan="3" class="num text-muted-2">ค่าจัดส่ง</td><td class="num">{% if order.shipping_fee %}{{ order.shipping_fee|baht }}{% else %}ฟรี{% endif %}</td></tr>
+          <tr><td colspan="3" class="num fw-bold">ยอดรวม</td><td class="num fw-bold fs-5">{{ order.total|baht }}</td></tr>
+        </tfoot></table></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    {% if order.payment_method == 'transfer' %}
+    <div class="panel mb-3"><div class="panel-body">
+      <h2 class="h6 fw-bold mb-3">การชำระเงิน (โอนเงิน)</h2>
+      {% if order.paid_at %}
+        <span class="tag navy">ชำระแล้ว</span> <span class="cell-sub">{{ order.paid_at|date:"j M Y H:i" }}</span>
+      {% endif %}
+      {% if order.slip_url %}
+        <a href="{{ order.slip_url }}" target="_blank" rel="noopener" class="d-block mt-2"><img class="slip-img" src="{{ order.slip_url }}" alt="สลิปโอนเงิน"></a>
+        <div class="cell-sub mt-1">แนบเมื่อ {{ order.slip_uploaded_at|date:"j M Y H:i" }} | ยอดที่ต้องได้รับ {{ order.total|baht }} บาท</div>
+      {% elif not order.paid_at %}
+        <div class="cell-sub">ลูกค้ายังไม่แนบสลิป</div>
+      {% endif %}
+      {% if order.status == 'pending_payment' %}
+        <form method="post" action="{% url 'dashboard:order_confirm_payment' order.number %}" class="no-print mt-3" onsubmit="return confirm('ยืนยันว่าได้รับเงินครบ {{ order.total|baht }} บาทแล้ว?')">{% csrf_token %}
+          <button class="btn btn-primary w-100">ยืนยันรับชำระเงิน</button>
+          <div class="cell-sub mt-1">ระบบจะส่งอีเมลแจ้งลูกค้าว่าได้รับเงินแล้ว</div>
+        </form>
+      {% endif %}
+    </div></div>
+    {% endif %}
+
+    <div class="panel mb-3 no-print"><div class="panel-body">
+      <h2 class="h6 fw-bold mb-3">อัปเดตสถานะ / จัดส่ง</h2>
+      {% if final %}
+        <div class="cell-sub">คำสั่งซื้อนี้ถูกยกเลิกแล้ว และคืนสินค้าเข้าสต็อกเรียบร้อย ไม่สามารถเปลี่ยนสถานะได้อีก</div>
+      {% else %}
+        <form method="post" novalidate id="statusForm">{% csrf_token %}
+          {{ form.status }}
+          <div id="trackRow" class="track-row mt-3{% if form.carrier.errors or form.tracking_number.errors or form.status.value == 'shipped' %} show{% endif %}">
+            <label class="form-label" for="{{ form.carrier.id_for_label }}">{{ form.carrier.label }}</label>{{ form.carrier }}
+            {% for e in form.carrier.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+            <label class="form-label mt-2" for="{{ form.tracking_number.id_for_label }}">{{ form.tracking_number.label }}</label>{{ form.tracking_number }}
+            {% for e in form.tracking_number.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+            <div class="cell-sub mt-1">บันทึกแล้วระบบจะส่งอีเมลเลขพัสดุพร้อมลิงก์ติดตามให้ลูกค้า ({{ order.user.email }}) อัตโนมัติ</div>
+          </div>
+          <div class="cell-sub mt-2">เลือก "ยกเลิก" แล้วระบบจะคืนสินค้าเข้าสต็อกและแจ้งลูกค้า (ย้อนกลับไม่ได้)</div>
+          <button class="btn btn-primary w-100 mt-3">บันทึก</button>
+        </form>
+        {% if order.status == 'shipped' and order.tracking_number %}
+        <form method="post" action="{% url 'dashboard:order_resend_shipping' order.number %}" class="mt-2">{% csrf_token %}
+          <button class="btn btn-outline-primary w-100 btn-sm">ส่งอีเมลเลขพัสดุให้ลูกค้าอีกครั้ง</button>
+        </form>
+        {% endif %}
+      {% endif %}
+    </div></div>
+    <div class="panel"><div class="panel-body">
+      <h2 class="h6 fw-bold mb-3">ข้อมูลลูกค้าและการจัดส่ง</h2>
+      <dl class="kv mb-0">
+        <dt>วันที่สั่งซื้อ</dt><dd>{{ order.created_at|date:"j M Y H:i" }}</dd>
+        <dt>ผู้รับ</dt><dd>{{ order.full_name }}</dd>
+        <dt>โทรศัพท์</dt><dd>{{ order.phone }}</dd>
+        <dt>บัญชี</dt><dd>{{ order.user.email }}</dd>
+        <dt>ที่อยู่</dt><dd>{{ order.address }}<br>{{ order.province }} {{ order.postal_code }}</dd>
+        {% if order.note %}<dt>หมายเหตุ</dt><dd>{{ order.note }}</dd>{% endif %}
+        <dt>ชำระเงิน</dt><dd>{{ order.get_payment_method_display }}</dd>
+        {% if order.tracking_number %}<dt>การจัดส่ง</dt><dd>{{ order.get_carrier_display }}<br><strong>{{ order.tracking_number }}</strong>{% if order.tracking_url %}<br><a href="{{ order.tracking_url }}" target="_blank" rel="noopener">เปิดหน้าติดตามพัสดุ</a>{% endif %}{% if order.shipped_at %}<div class="cell-sub">จัดส่งเมื่อ {{ order.shipped_at|date:"j M Y H:i" }}</div>{% endif %}</dd>{% endif %}
+      </dl>
+    </div></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+(function(){var st=document.getElementById('{{ form.status.id_for_label }}');var row=document.getElementById('trackRow');if(!st||!row)return;
+function sync(){row.classList.toggle('show',st.value==='shipped');}st.addEventListener('change',sync);sync();})();
+</script>{% endblock %}

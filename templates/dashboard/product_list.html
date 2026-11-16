@@ -1,0 +1,43 @@
+{% extends 'dashboard/base.html' %}
+{% load shop_extras %}
+{% block title %}สินค้า{% endblock %}
+{% block heading %}สินค้า{% endblock %}
+{% block content %}
+<div class="panel">
+  <div class="panel-head flex-wrap">
+    <form class="filters" method="get">
+      <div><label for="q">ค้นหา</label><input id="q" name="q" value="{{ q }}" class="form-control" placeholder="ชื่อหรือแบรนด์"></div>
+      <div><label for="category">หมวดหมู่</label><select id="category" name="category" class="form-select"><option value="">ทั้งหมด</option>{% for c in categories %}<option value="{{ c.pk }}"{% if cat == c.pk|stringformat:"s" %} selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
+      <div><label for="state">สถานะ</label><select id="state" name="state" class="form-select">
+        <option value="">ทั้งหมด</option><option value="active"{% if state == 'active' %} selected{% endif %}>แสดงในร้าน</option><option value="inactive"{% if state == 'inactive' %} selected{% endif %}>ซ่อนอยู่</option>
+        <option value="low"{% if state == 'low' %} selected{% endif %}>สต็อกใกล้หมด</option><option value="out"{% if state == 'out' %} selected{% endif %}>สินค้าหมด</option></select></div>
+      <div><label for="sort">เรียงตาม</label><select id="sort" name="sort" class="form-select">
+        <option value="new">ใหม่ล่าสุด</option><option value="name"{% if sort == 'name' %} selected{% endif %}>ชื่อ</option><option value="stock"{% if sort == 'stock' %} selected{% endif %}>สต็อกน้อยก่อน</option><option value="price"{% if sort == 'price' %} selected{% endif %}>ราคาสูงก่อน</option></select></div>
+      <button class="btn btn-primary btn-sm" style="height:42px">กรอง</button>
+    </form>
+    <a href="{% url 'dashboard:product_new' %}" class="btn btn-primary">{% icon 'plus' 18 %} เพิ่มสินค้า</a>
+  </div>
+  <div class="table-responsive"><table class="table table-hover">
+    <thead><tr><th>สินค้า</th><th>หมวดหมู่</th><th class="num">ราคา</th><th class="text-center">สต็อก</th><th class="text-center">แสดงในร้าน</th><th></th></tr></thead>
+    <tbody>
+      {% for p in page %}
+      <tr>
+        <td><div class="d-flex align-items-center gap-3"><img class="thumb-sm" src="{{ p.image_url }}" alt="">
+          <div style="min-width:200px"><a class="cell-name" href="{% url 'dashboard:product_edit' p.pk %}">{{ p.name }}</a>
+          <div class="cell-sub">{{ p.brand }}{% if p.brand and p.size %} | {% endif %}{{ p.size }}
+            {% if p.is_new %}<span class="tag yellow">ใหม่</span>{% endif %}{% if p.is_best_seller %}<span class="tag">ขายดี</span>{% endif %}</div></div></div></td>
+        <td>{{ p.category.name }}</td>
+        <td class="num"><span class="fw-bold">{{ p.price|baht }}</span>{% if p.on_sale %}<div class="cell-sub"><s>{{ p.compare_price|baht }}</s> (-{{ p.discount_percent }}%)</div>{% endif %}</td>
+        <td class="text-center"><input type="number" min="0" class="form-control stock-input js-stock{% if p.stock <= LOW_STOCK %} low{% endif %}" value="{{ p.stock }}" data-url="{% url 'dashboard:product_quick' p.pk %}" data-low="{{ LOW_STOCK }}" aria-label="สต็อก {{ p.name }}"></td>
+        <td class="text-center"><div class="form-check form-switch d-inline-block m-0"><input class="form-check-input js-active" type="checkbox" role="switch" {% if p.is_active %}checked{% endif %} data-url="{% url 'dashboard:product_quick' p.pk %}" aria-label="แสดง {{ p.name }}"></div></td>
+        <td class="text-end text-nowrap">
+          <a class="icon-btn" href="{% url 'dashboard:product_edit' p.pk %}" aria-label="แก้ไข" title="แก้ไข">{% icon 'edit' 16 %}</a>
+          <a class="icon-btn danger" href="{% url 'dashboard:product_delete' p.pk %}" aria-label="ลบ" title="ลบ">{% icon 'trash' 16 %}</a>
+        </td>
+      </tr>
+      {% empty %}<tr><td colspan="6" class="empty-row">ไม่พบสินค้า</td></tr>{% endfor %}
+    </tbody></table></div>
+  {% include 'dashboard/_pager.html' %}
+</div>
+<p class="cell-sub mt-2">{{ page.paginator.count }} รายการ | แก้สต็อกและสวิตช์แสดงสินค้าได้ในตารางโดยตรง ระบบบันทึกให้อัตโนมัติ</p>
+{% endblock %}

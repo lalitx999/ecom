@@ -1,0 +1,46 @@
+{% extends 'dashboard/base.html' %}
+{% load shop_extras %}
+{% block title %}{% if product %}แก้ไขสินค้า{% else %}เพิ่มสินค้า{% endif %}{% endblock %}
+{% block heading %}{% if product %}แก้ไขสินค้า{% else %}เพิ่มสินค้า{% endif %}{% endblock %}
+{% block content %}
+<form method="post" enctype="multipart/form-data" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="flash flash-error">{{ form.non_field_errors.0 }}</div>{% endif %}
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <div class="panel"><div class="panel-body">
+        {% include 'shop/_field.html' with field=form.name %}
+        <div class="row"><div class="col-md-6">{% include 'shop/_field.html' with field=form.category %}</div><div class="col-md-6">{% include 'shop/_field.html' with field=form.brand %}</div></div>
+        {% include 'shop/_field.html' with field=form.size %}
+        {% include 'shop/_field.html' with field=form.description %}
+        {% include 'shop/_field.html' with field=form.slug %}
+        {% if form.slug.help_text %}<div class="cell-sub" style="margin-top:-.75rem">{{ form.slug.help_text }}</div>{% endif %}
+      </div></div>
+    </div>
+    <div class="col-lg-4">
+      <div class="panel mb-3"><div class="panel-body">
+        <img id="imgPreview" class="img-preview mb-3" src="{% if product %}{{ product.image_url }}{% else %}{% load static %}{% static 'img/placeholder.svg' %}{% endif %}" alt="">
+        <label class="form-label" for="{{ form.image.id_for_label }}">รูปสินค้า</label>
+        {{ form.image }}
+        <div class="cell-sub mt-1">JPG, PNG, WebP ไม่เกิน 5 MB (แนะนำรูปสี่เหลี่ยมจัตุรัส)</div>
+        {% for e in form.image.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+      </div></div>
+      <div class="panel mb-3"><div class="panel-body">
+        {% include 'shop/_field.html' with field=form.price %}
+        {% include 'shop/_field.html' with field=form.compare_price %}
+        {% include 'shop/_field.html' with field=form.stock %}
+      </div></div>
+      <div class="panel mb-3"><div class="panel-body">
+        {% include 'dashboard/_check.html' with field=form.is_active %}
+        {% include 'dashboard/_check.html' with field=form.is_new %}
+        {% include 'dashboard/_check.html' with field=form.is_best_seller %}
+      </div></div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary px-4 flex-grow-1" style="height:48px">บันทึก</button>
+        <a href="{% url 'dashboard:products' %}" class="btn btn-outline-primary px-4 d-flex align-items-center">ยกเลิก</a>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}<script>document.getElementById('{{ form.image.id_for_label }}').classList.add('js-image-input');document.getElementById('{{ form.image.id_for_label }}').dataset.preview='imgPreview';</script>{% endblock %}

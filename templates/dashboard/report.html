@@ -1,0 +1,79 @@
+{% extends 'dashboard/base.html' %}
+{% load shop_extras %}
+{% block title %}รายงานยอดขาย{% endblock %}
+{% block heading %}รายงานยอดขาย{% endblock %}
+{% block content %}
+<div class="panel mb-3 no-print">
+  <div class="panel-body d-flex flex-wrap gap-3 align-items-end justify-content-between">
+    <form class="filters" method="get">
+      <div><label for="from">ตั้งแต่</label><input id="from" type="date" name="from" value="{{ start|date:'Y-m-d' }}" class="form-control"></div>
+      <div><label for="to">ถึง</label><input id="to" type="date" name="to" value="{{ end|date:'Y-m-d' }}" class="form-control"></div>
+      <div><label for="group">แสดงรายงานตาม</label><select id="group" name="group" class="form-select"><option value="day"{% if group == 'day' %} selected{% endif %}>รายวัน</option><option value="month"{% if group == 'month' %} selected{% endif %}>รายเดือน</option></select></div>
+      <button class="btn btn-primary btn-sm" style="height:42px">ดูรายงาน</button>
+    </form>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-primary btn-sm" href="?from={{ month_start|date:'Y-m-d' }}&to={{ today|date:'Y-m-d' }}">เดือนนี้</a>
+      <a class="btn btn-outline-primary btn-sm" href="?from={{ last30_start|date:'Y-m-d' }}&to={{ today|date:'Y-m-d' }}">30 วันล่าสุด</a>
+      <button type="button" class="btn btn-outline-primary btn-sm" onclick="window.print()">{% icon 'printer' 16 %} พิมพ์</button>
+    </div>
+  </div>
+</div>
+
+<p class="fw-bold mb-2">ช่วงวันที่ {{ start|date:"j M Y" }} - {{ end|date:"j M Y" }}</p>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-xl-3"><div class="stat"><div class="label">ยอดขายรวม (บาท)</div><div class="value">{{ summary.revenue|baht }}</div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat"><div class="label">จำนวนคำสั่งซื้อ</div><div class="value">{{ summary.orders }}</div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat"><div class="label">เฉลี่ยต่อออเดอร์ (บาท)</div><div class="value">{{ summary.aov|baht }}</div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat"><div class="label">ค่าจัดส่งที่เก็บ (บาท)</div><div class="value">{{ summary.shipping|baht }}</div><div class="sub">ราคาสินค้า {{ summary.goods|baht }}</div></div></div>
+</div>
+
+<div class="panel mb-3">
+  <div class="panel-head"><h2>ยอดขาย{% if group == 'month' %}รายเดือน{% else %}รายวัน{% endif %}</h2>
+    <a class="btn btn-outline-primary btn-sm no-print" href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&group={{ group }}&export=periods">{% icon 'download' 16 %} CSV</a></div>
+  <div class="panel-body">
+    <div class="bars" role="img" aria-label="กราฟแท่งยอดขาย">
+      {% for r in series %}<div class="bar{% if not r.pct %} zero{% endif %}" style="height:{{ r.pct }}%" title="{% if group == 'month' %}{{ r.label|date:'M Y' }}{% else %}{{ r.label|date:'j M Y' }}{% endif %}: {{ r.revenue|baht }} บาท ({{ r.orders }} ออเดอร์)"></div>{% endfor %}
+    </div>
+    <div class="bar-axis"><span>{% if group == 'month' %}{{ start|date:"M Y" }}{% else %}{{ start|date:"j M" }}{% endif %}</span><span>{% if group == 'month' %}{{ end|date:"M Y" }}{% else %}{{ end|date:"j M" }}{% endif %}</span></div>
+  </div>
+  <div class="table-responsive" style="max-height:340px;overflow:auto"><table class="table table-hover">
+    <thead><tr><th>ช่วงเวลา</th><th class="num">ออเดอร์</th><th class="num">ยอดขาย (บาท)</th></tr></thead>
+    <tbody>{% for r in series %}<tr><td>{% if group == 'month' %}{{ r.label|date:"F Y" }}{% else %}{{ r.label|date:"j M Y" }}{% endif %}</td><td class="num">{{ r.orders }}</td><td class="num">{{ r.revenue|baht }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="panel h-100">
+      <div class="panel-head"><h2>สินค้าขายดี</h2>
+        <a class="btn btn-outline-primary btn-sm no-print" href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&export=products">{% icon 'download' 16 %} CSV (ทั้งหมด)</a></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th>สินค้า</th><th class="num">จำนวน</th><th class="num">ยอดขาย</th></tr></thead>
+        <tbody>{% for p in products %}<tr><td class="cell-name">{{ p.name }}</td><td class="num">{{ p.qty }}</td><td class="num fw-bold">{{ p.revenue|baht }}</td></tr>
+          {% empty %}<tr><td colspan="3" class="empty-row">ไม่มีข้อมูลในช่วงนี้</td></tr>{% endfor %}</tbody></table></div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="panel mb-3">
+      <div class="panel-head"><h2>ตามหมวดหมู่</h2></div>
+      <div class="table-responsive"><table class="table"><tbody>
+        {% for c in categories %}<tr><td>{{ c.name }}</td><td class="num cell-sub">{{ c.qty }} ชิ้น</td><td class="num fw-bold">{{ c.revenue|baht }}</td></tr>{% empty %}<tr><td class="empty-row">ไม่มีข้อมูล</td></tr>{% endfor %}
+      </tbody></table></div>
+    </div>
+    <div class="panel mb-3">
+      <div class="panel-head"><h2>ตามวิธีชำระเงิน</h2></div>
+      <div class="table-responsive"><table class="table"><tbody>
+        {% for p in payments %}<tr><td>{{ p.label }}</td><td class="num cell-sub">{{ p.orders }} ออเดอร์</td><td class="num fw-bold">{{ p.revenue|baht }}</td></tr>{% empty %}<tr><td class="empty-row">ไม่มีข้อมูล</td></tr>{% endfor %}
+      </tbody></table></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>ตามสถานะ (รวมที่ยกเลิก)</h2>
+        <a class="btn btn-outline-primary btn-sm no-print" href="?from={{ start|date:'Y-m-d' }}&to={{ end|date:'Y-m-d' }}&export=orders">{% icon 'download' 16 %} CSV ออเดอร์</a></div>
+      <div class="table-responsive"><table class="table"><tbody>
+        {% for s in statuses %}<tr><td><span class="status-pill status-{{ s.status }}">{{ s.label }}</span></td><td class="num cell-sub">{{ s.orders }} ออเดอร์</td><td class="num fw-bold">{{ s.revenue|baht }}</td></tr>{% empty %}<tr><td class="empty-row">ไม่มีข้อมูล</td></tr>{% endfor %}
+      </tbody></table></div>
+    </div>
+  </div>
+</div>
+<p class="cell-sub mt-3">ยอดขาย = คำสั่งซื้อที่ไม่ถูกยกเลิก (รวมค่าจัดส่ง) นับตามวันที่สั่งซื้อ เวลาไทย ไฟล์ CSV เปิดใน Excel ได้โดยตรง</p>
+{% endblock %}

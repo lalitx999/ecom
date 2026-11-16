@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% load shop_extras %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
+    <div>
+      <h1 class="section-title">{{ title }}</h1>
+      <div class="text-muted-2">{{ page.paginator.count }} รายการ</div>
+    </div>
+    <form method="get" class="d-flex align-items-center gap-2">
+      {% if category %}<input type="hidden" name="category" value="{{ category.slug }}">{% endif %}
+      {% if filter %}<input type="hidden" name="filter" value="{{ filter }}">{% endif %}
+      {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+      <label for="sort" class="text-muted-2 text-nowrap">เรียงตาม</label>
+      <select id="sort" name="sort" class="form-select" onchange="this.form.submit()">
+        {% for key, label in sorts %}<option value="{{ key }}"{% if key == sort %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </form>
+  </div>
+
+  <div class="d-flex gap-2 overflow-auto pb-2 mb-3 chip-row">
+    <a class="filter-pill{% if not filter %} active{% endif %}" href="{% url 'shop:product_list' %}{% if category %}?category={{ category.slug }}{% endif %}">ทั้งหมด</a>
+    <a class="filter-pill{% if filter == 'sale' %} active{% endif %}" href="?filter=sale{% if category %}&category={{ category.slug }}{% endif %}">ลดราคา</a>
+    <a class="filter-pill{% if filter == 'best' %} active{% endif %}" href="?filter=best{% if category %}&category={{ category.slug }}{% endif %}">ขายดี</a>
+    <a class="filter-pill{% if filter == 'new' %} active{% endif %}" href="?filter=new{% if category %}&category={{ category.slug }}{% endif %}">สินค้าใหม่</a>
+  </div>
+
+  {% if page.object_list %}
+    <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
+      {% for product in page %}<div class="col">{% include 'shop/_product_card.html' %}</div>{% endfor %}
+    </div>
+
+    {% if page.paginator.num_pages > 1 %}
+    <nav class="mt-4" aria-label="เปลี่ยนหน้า">
+      <ul class="pagination justify-content-center flex-wrap">
+        {% if page.has_previous %}<li class="page-item"><a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.previous_page_number }}">ก่อนหน้า</a></li>{% endif %}
+        {% for n in page.paginator.page_range %}
+          <li class="page-item{% if n == page.number %} active{% endif %}"><a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ n }}">{{ n }}</a></li>
+        {% endfor %}
+        {% if page.has_next %}<li class="page-item"><a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page.next_page_number }}">ถัดไป</a></li>{% endif %}
+      </ul>
+    </nav>
+    {% endif %}
+  {% else %}
+    <div class="empty-state">
+      <div class="disc">{% icon 'search' 44 %}</div>
+      <h5 class="fw-bold">ไม่พบสินค้า</h5>
+      <p class="text-muted-2">ลองค้นหาด้วยคำอื่น หรือดูสินค้าทั้งหมด</p>
+      <a href="{% url 'shop:product_list' %}" class="btn btn-primary px-4">ดูสินค้าทั้งหมด</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

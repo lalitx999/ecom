@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}เข้าสู่ระบบ{% endblock %}
+{% block content %}
+<div class="container py-4 py-lg-5">
+  <div class="auth-card">
+    <h1 class="section-title mb-4">เข้าสู่ระบบ</h1>
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      {% if form.non_field_errors %}<div class="flash flash-error">{{ form.non_field_errors.0 }}</div>{% endif %}
+      {% for field in form %}{% include 'shop/_field.html' %}{% endfor %}
+      <div class="text-end mb-2"><a class="fw-semibold" href="{% url 'shop:password_reset' %}">ลืมรหัสผ่าน?</a></div>
+      <button class="btn btn-primary w-100 mt-2" style="height:52px">เข้าสู่ระบบ</button>
+    </form>
+    <p class="text-center mt-4 mb-0">ยังไม่มีบัญชี? <a class="fw-bold" href="{% url 'shop:register' %}{% if next %}?next={{ next|urlencode }}{% endif %}">สมัครสมาชิก</a></p>
+  </div>
+</div>
+{% endblock %}

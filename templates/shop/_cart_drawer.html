@@ -1,0 +1,22 @@
+{% load shop_extras %}
+{% if cart.is_empty %}
+  <div class="empty-state my-auto">
+    <div class="disc">{% icon 'cart' 44 %}</div>
+    <h6 class="fw-bold">ตะกร้าของคุณยังว่างอยู่</h6>
+    <p class="text-muted-2">เลือกสินค้าที่ถูกใจแล้วเพิ่มลงในตะกร้าได้เลย</p>
+    <a href="{% url 'shop:product_list' %}" class="btn btn-primary px-4" data-bs-dismiss="offcanvas">เลือกซื้อสินค้า</a>
+  </div>
+{% else %}
+  <div class="drawer-scroll">
+    {% for line in cart %}
+      {% include 'shop/_cart_line.html' with line=line %}
+    {% endfor %}
+  </div>
+  <div class="drawer-footer">
+    <div class="summary-row"><span>จำนวนสินค้า</span><span>{{ cart|length }} ชิ้น</span></div>
+    {% if cart.savings %}<div class="summary-row text-accent"><span>ประหยัดไปแล้ว</span><span>{{ cart.savings|baht }} บาท</span></div>{% endif %}
+    <div class="summary-row summary-total"><span>รวมทั้งหมด</span><span>{{ cart.subtotal|baht }} บาท</span></div>
+    {% if cart.free_shipping_gap %}<div class="ship-note my-2">ซื้อเพิ่มอีก {{ cart.free_shipping_gap|baht }} บาท รับฟรีค่าจัดส่ง</div>{% endif %}
+    <a href="{% url 'shop:cart' %}" class="btn btn-primary w-100 mt-2" style="height:52px;display:flex;align-items:center;justify-content:center">ดูตะกร้าสินค้า</a>
+  </div>
+{% endif %}

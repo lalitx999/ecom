@@ -1,0 +1,18 @@
+{% extends 'dashboard/base.html' %}
+{% load shop_extras %}
+{% block title %}หมวดหมู่{% endblock %}
+{% block heading %}หมวดหมู่{% endblock %}
+{% block content %}
+<div class="panel">
+  <div class="panel-head"><h2>หมวดหมู่ทั้งหมด</h2><a href="{% url 'dashboard:category_new' %}" class="btn btn-primary">{% icon 'plus' 18 %} เพิ่มหมวดหมู่</a></div>
+  <div class="table-responsive"><table class="table table-hover">
+    <thead><tr><th>ลำดับ</th><th>ชื่อ</th><th>URL</th><th class="num">จำนวนสินค้า</th><th></th></tr></thead>
+    <tbody>
+      {% for c in categories %}
+      <tr><td>{{ c.order }}</td><td class="cell-name">{{ c.name }}</td><td class="cell-sub">{{ c.slug }}</td><td class="num">{{ c.n }}</td>
+        <td class="text-end text-nowrap"><a class="icon-btn" href="{% url 'dashboard:category_edit' c.pk %}" aria-label="แก้ไข">{% icon 'edit' 16 %}</a>
+          <a class="icon-btn danger" href="{% url 'dashboard:category_delete' c.pk %}" aria-label="ลบ">{% icon 'trash' 16 %}</a></td></tr>
+      {% empty %}<tr><td colspan="5" class="empty-row">ยังไม่มีหมวดหมู่</td></tr>{% endfor %}
+    </tbody></table></div>
+</div>
+{% endblock %}
