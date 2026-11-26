@@ -3,28 +3,36 @@ from decimal import Decimal
 
 from django.conf import settings
 
-from .models import Product
+from .models import ProductVariant
 
 
 @dataclass
 class CartLine:
-    product: Product
+    variant: ProductVariant
     qty: int
     limited: bool = False  # quantity was clamped to available stock
 
     @property
+    def product(self):
+        return self.variant.product
+
+    @property
+    def max_qty(self):
+        return Cart.max_qty(self.variant)
+
+    @property
     def total(self):
-        return self.product.price * self.qty
+        return self.variant.price * self.qty
 
     @property
     def saving(self):
-        if self.product.on_sale:
-            return (self.product.compare_price - self.product.price) * self.qty
+        if self.variant.on_sale:
+            return (self.variant.compare_price - self.variant.price) * self.qty
         return Decimal('0')
 
 
 class Cart:
-    """Session-backed cart: {product_id: qty}. Stock and price are always read fresh from the DB."""
+    """Session-backed cart: {variant_id: qty}. Stock and price are always read fresh from the DB."""
 
     def __init__(self, request):
         self.session = request.session
@@ -37,23 +45,23 @@ class Cart:
         self._lines = None
 
     @staticmethod
-    def max_qty(product):
-        return max(0, min(product.stock, settings.CART_MAX_QTY))
+    def max_qty(variant):
+        return max(0, min(variant.stock, settings.CART_MAX_QTY))
 
-    def add(self, product, qty=1):
+    def add(self, variant, qty=1):
         """Add qty to the line. Returns True when the request was clamped to stock."""
-        key = str(product.pk)
+        key = str(variant.pk)
         wanted = self.data.get(key, 0) + qty
-        allowed = self.max_qty(product)
+        allowed = self.max_qty(variant)
         self.data[key] = min(wanted, allowed)
         if self.data[key] <= 0:
             self.data.pop(key, None)
         self._save()
         return wanted > allowed
 
-    def set(self, product, qty):
-        key = str(product.pk)
-        allowed = self.max_qty(product)
+    def set(self, variant, qty):
+        key = str(variant.pk)
+        allowed = self.max_qty(variant)
         if qty <= 0 or allowed == 0:
             self.data.pop(key, None)
         else:
@@ -61,8 +69,8 @@ class Cart:
         self._save()
         return qty > allowed
 
-    def remove(self, product):
-        self.data.pop(str(product.pk), None)
+    def remove(self, variant):
+        self.data.pop(str(variant.pk), None)
         self._save()
 
     def clear(self):
@@ -74,16 +82,17 @@ class Cart:
     @property
     def lines(self):
         if self._lines is None:
-            ids = [int(k) for k in self.data]
-            products = {p.pk: p for p in Product.objects.filter(pk__in=ids, is_active=True)}
+            ids = [int(k) for k in self.data if str(k).isdigit()]
+            variants = {v.pk: v for v in ProductVariant.objects.purchasable().filter(pk__in=ids)
+                        .select_related('product').prefetch_related('product__images')}
             lines = []
             for key, qty in self.data.items():
-                product = products.get(int(key))
-                if not product or product.stock <= 0:
+                variant = variants.get(int(key)) if str(key).isdigit() else None
+                if not variant or variant.stock <= 0:
                     continue
-                allowed = self.max_qty(product)
-                lines.append(CartLine(product, min(qty, allowed), limited=qty > allowed))
-            lines.sort(key=lambda l: l.product.name)
+                allowed = self.max_qty(variant)
+                lines.append(CartLine(variant, min(qty, allowed), limited=qty > allowed))
+            lines.sort(key=lambda l: (l.product.name, l.variant.sort_order, l.variant.pk))
             self._lines = lines
         return self._lines
 
@@ -123,7 +132,7 @@ class Cart:
         """Rewrite the session so it matches what is really purchasable (clamp qty, drop unavailable)."""
         self.data.clear()
         for line in self.lines:
-            self.data[str(line.product.pk)] = line.qty
+            self.data[str(line.variant.pk)] = line.qty
         self._save()
 
     @property

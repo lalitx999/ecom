@@ -6,7 +6,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from . import notify
-from .models import Order, OrderItem, Product
+from .models import Order, OrderItem, ProductVariant
 
 
 class StockError(Exception):
@@ -22,22 +22,23 @@ def place_order(user, cart, data):
     Rows are locked with SELECT ... FOR UPDATE (ordered by pk to avoid deadlocks) so two buyers
     can never both take the last item. Raises StockError if anything is no longer available.
     """
-    wanted = {int(pk): qty for pk, qty in cart.data.items() if qty > 0}
-    products = {p.pk: p for p in Product.objects.select_for_update().filter(pk__in=wanted, is_active=True).order_by('pk')}
+    wanted = {int(pk): qty for pk, qty in cart.data.items() if str(pk).isdigit() and qty > 0}
+    variants = {v.pk: v for v in ProductVariant.objects.purchasable().select_for_update(of=('self',))
+                .select_related('product').filter(pk__in=wanted).order_by('pk')}
 
     problems = []
     for pk, qty in wanted.items():
-        p = products.get(pk)
-        if p is None:
+        v = variants.get(pk)
+        if v is None:
             problems.append('สินค้าที่ไม่พร้อมจำหน่าย')
-        elif p.stock < qty:
-            problems.append(p.name)
+        elif v.stock < qty:
+            problems.append(str(v))
     if problems:
         raise StockError(problems)
     if not wanted:
         raise StockError([])
 
-    subtotal = sum((products[pk].price * qty for pk, qty in wanted.items()), Decimal('0'))
+    subtotal = sum((variants[pk].price * qty for pk, qty in wanted.items()), Decimal('0'))
     shipping = Decimal('0') if subtotal >= settings.FREE_SHIPPING_THRESHOLD else Decimal(settings.SHIPPING_FEE)
     method = data['payment_method']
     order = Order.objects.create(
@@ -49,10 +50,11 @@ def place_order(user, cart, data):
         subtotal=subtotal, shipping_fee=shipping, total=subtotal + shipping,
     )
     for pk, qty in wanted.items():
-        p = products[pk]
-        OrderItem.objects.create(order=order, product=p, name=p.name, size=p.size, unit_price=p.price, qty=qty, image_url=p.image_url)
-        p.stock -= qty
-        p.save(update_fields=['stock'])
+        v = variants[pk]
+        OrderItem.objects.create(order=order, product=v.product, variant=v, name=v.product.name, color=v.color, size=v.size,
+                                 sku=v.sku or '', unit_price=v.price, qty=qty, image_url=v.image_url)
+        v.stock -= qty
+        v.save(update_fields=['stock'])
     notify.order_placed(order)
     return order
 
@@ -88,8 +90,8 @@ def change_order_status(order, new_status, carrier='', tracking_number=''):
     old = order.status
     now = timezone.now()
     if new_status == S.CANCELLED:
-        for item in order.items.exclude(product=None).select_related('product'):
-            Product.objects.filter(pk=item.product_id).update(stock=F('stock') + item.qty)
+        for item in order.items.exclude(variant=None):
+            ProductVariant.objects.filter(pk=item.variant_id).update(stock=F('stock') + item.qty)
     if new_status in (S.PROCESSING, S.SHIPPED, S.COMPLETED) and order.paid_at is None and not (
             order.payment_method == Order.Payment.COD and new_status != S.COMPLETED):
         order.paid_at = now

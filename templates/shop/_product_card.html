@@ -1,25 +1,31 @@
 {% load shop_extras %}
 <article class="product-card">
   {% if not product.in_stock %}<span class="badge-sale badge-out">สินค้าหมด</span>
-  {% elif product.on_sale %}<span class="badge-sale">ลด {{ product.discount_percent }}%</span>
+  {% elif product.on_sale %}<span class="badge-sale">ลด {% if product.has_price_range %}สูงสุด {% endif %}{{ product.discount_percent }}%</span>
   {% elif product.is_new %}<span class="badge-sale badge-new">ใหม่</span>{% endif %}
   <a href="{{ product.get_absolute_url }}" class="thumb ratio ratio-1x1" tabindex="-1" aria-hidden="true">
     <img src="{{ product.image_url }}" alt="" loading="lazy">
   </a>
   <div class="body">
-    {% if product.brand %}<div class="product-brand">{{ product.brand }}</div>{% endif %}
+    {% if product.brand %}<div class="product-brand">{{ product.brand.name }}</div>{% endif %}
     <a href="{{ product.get_absolute_url }}" class="product-name">{{ product.name }}</a>
-    <div class="product-size">{{ product.size|default:"&nbsp;" }}</div>
+    <div class="product-size">{% with colors=product.colors sizes=product.sizes %}{% if colors|length > 1 %}{{ colors|length }} สี{% endif %}{% if colors|length > 1 and sizes %} · {% endif %}{% if sizes|length > 1 %}{{ sizes|length }} ไซซ์{% elif sizes %}{{ sizes.0 }}{% endif %}{% if not sizes and colors|length < 2 %}&nbsp;{% endif %}{% endwith %}</div>
     <div class="price-row">
-      <span class="price">{{ product.price|baht }} บาท</span>
-      {% if product.on_sale %}<span class="price-old">{{ product.compare_price|baht }}</span>{% endif %}
+      {% if product.min_price is not None %}
+        <span class="price">{% if product.has_price_range %}เริ่มต้น {% endif %}{{ product.min_price|baht }} บาท</span>
+        {% with v=product.cheapest %}{% if v.on_sale and not product.has_price_range %}<span class="price-old">{{ v.compare_price|baht }}</span>{% endif %}{% endwith %}
+      {% endif %}
     </div>
-    {% if product.in_stock %}
-      <button type="button" class="btn btn-outline-primary w-100 js-add-to-cart" data-product-id="{{ product.pk }}" data-qty="1">
+    {% with v=product.single_variant %}
+    {% if not product.in_stock %}
+      <button type="button" class="btn btn-outline-primary w-100" disabled>สินค้าหมด</button>
+    {% elif v %}
+      <button type="button" class="btn btn-outline-primary w-100 js-add-to-cart" data-variant-id="{{ v.pk }}" data-qty="1">
         {% icon 'plus' 18 %} เพิ่มลงในตะกร้า
       </button>
     {% else %}
-      <button type="button" class="btn btn-outline-primary w-100" disabled>สินค้าหมด</button>
+      <a href="{{ product.get_absolute_url }}" class="btn btn-outline-primary w-100">เลือกตัวเลือก</a>
     {% endif %}
+    {% endwith %}
   </div>
 </article>

@@ -34,3 +34,9 @@ private_media/*
 
 # Logs
 *.log
+
+# Uploaded / imported product images (recreate with: python manage.py import_ns_select)
+media/products/*
+
+# collectstatic output
+staticfiles/

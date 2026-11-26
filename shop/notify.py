@@ -38,7 +38,7 @@ def _seller_recipients():
 
 
 def _items(order):
-    return [(i.name, i.qty, baht(i.line_total)) for i in order.items.all()]
+    return [(f'{i.name} ({i.variant_label})' if i.variant_label else i.name, i.qty, baht(i.line_total)) for i in order.items.all()]
 
 
 def _totals(order):

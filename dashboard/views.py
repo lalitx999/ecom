@@ -5,18 +5,19 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.core.paginator import Paginator
-from django.db.models import Count, ProtectedError, Q, Sum
+from django.db import transaction
+from django.db.models import Count, Max, Min, ProtectedError, Q, Sum
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from shop.models import Category, Order, Product
+from shop.models import Brand, Category, Order, Product, ProductVariant
 from shop import notify
 from shop.services import InvalidTransition, change_order_status
 
 from . import reports
-from .forms import CategoryForm, OrderStatusForm, ProductForm, SetPasswordForm, UserForm
+from .forms import CategoryForm, ImageFormSet, OrderStatusForm, ProductForm, SetPasswordForm, UserForm, VariantFormSet
 from .permissions import staff_required, superuser_required
 
 User = get_user_model()
@@ -75,23 +76,31 @@ def home(request):
         'to_process': Order.objects.filter(status=Order.Status.PROCESSING).count(),
         'pending_payment': Order.objects.filter(status=Order.Status.PENDING_PAYMENT).count(),
         'slips_waiting': Order.objects.filter(status=Order.Status.PENDING_PAYMENT).exclude(payment_slip='').count(),
-        'low_stock_count': Product.objects.filter(is_active=True, stock__lte=LOW_STOCK).count(),
+        'low_stock_count': _low_variants().count(),
         'customers': User.objects.filter(is_staff=False).count(),
         'series': reports.with_bars(reports.daily_series(start, today)),
         'recent_orders': Order.objects.select_related('user')[:8],
-        'low_stock': Product.objects.filter(is_active=True, stock__lte=LOW_STOCK).order_by('stock', 'name')[:8],
+        'low_stock': _low_variants().select_related('product').order_by('stock', 'product__name')[:8],
         'top_products': reports.top_products(reports.sales_between(start, today), 5),
         'range_start': start, 'range_end': today, 'LOW_STOCK': LOW_STOCK,
     })
 
 
 # ------------------------------------------------------------ products
+def _low_variants():
+    return ProductVariant.objects.filter(is_active=True, product__is_active=True, stock__lte=LOW_STOCK)
+
+
 @staff_required
 def product_list(request):
-    qs = Product.objects.select_related('category')
+    active = Q(variants__is_active=True)
+    qs = (Product.objects.select_related('category', 'brand').prefetch_related('images')
+          .annotate(stock_sum=Sum('variants__stock', filter=active), price_min=Min('variants__price', filter=active),
+                    price_max=Max('variants__price', filter=active), variant_count=Count('variants', filter=active),
+                    low_count=Count('variants', filter=active & Q(variants__stock__lte=LOW_STOCK))))
     q = request.GET.get('q', '').strip()
     if q:
-        qs = qs.filter(Q(name__icontains=q) | Q(brand__icontains=q))
+        qs = qs.filter(Q(name__icontains=q) | Q(brand__name__icontains=q) | Q(variants__sku__icontains=q)).distinct()
     cat = request.GET.get('category', '')
     if cat.isdigit():
         qs = qs.filter(category_id=int(cat))
@@ -99,11 +108,11 @@ def product_list(request):
     qs = {
         'active': qs.filter(is_active=True),
         'inactive': qs.filter(is_active=False),
-        'low': qs.filter(stock__gt=0, stock__lte=LOW_STOCK),
-        'out': qs.filter(stock=0),
+        'low': qs.filter(low_count__gt=0, stock_sum__gt=0),
+        'out': qs.filter(Q(stock_sum=0) | Q(stock_sum__isnull=True)),
     }.get(state, qs)
     sort = request.GET.get('sort', 'new')
-    qs = qs.order_by({'new': '-created_at', 'name': 'name', 'stock': 'stock', 'price': '-price'}.get(sort, '-created_at'), 'name')
+    qs = qs.order_by({'new': '-created_at', 'name': 'name', 'stock': 'stock_sum', 'price': '-price_max'}.get(sort, '-created_at'), 'name')
     page, qstr = paginate(request, qs)
     return render(request, 'dashboard/product_list.html', {
         'page': page, 'querystring': qstr, 'q': q, 'cat': cat, 'state': state, 'sort': sort,
@@ -113,13 +122,23 @@ def product_list(request):
 
 @staff_required
 def product_form(request, pk=None):
-    product = get_object_or_404(Product, pk=pk) if pk else None
-    form = ProductForm(request.POST or None, request.FILES or None, instance=product)
-    if request.method == 'POST' and form.is_valid():
-        saved = form.save()
+    product = get_object_or_404(Product, pk=pk) if pk else Product()
+    data, files = (request.POST, request.FILES) if request.method == 'POST' else (None, None)
+    form = ProductForm(data, files, instance=product)
+    variants = VariantFormSet(data, instance=product, prefix='variants')
+    images = ImageFormSet(data, files, instance=product, prefix='images')
+    if request.method == 'POST' and form.is_valid() and variants.is_valid() and images.is_valid():
+        with transaction.atomic():
+            saved = form.save()
+            variants.instance = images.instance = saved
+            variants.save()
+            images.save()
         messages.success(request, f'บันทึกสินค้า "{saved.name}" แล้ว')
-        return redirect('dashboard:products')
-    return render(request, 'dashboard/product_form.html', {'form': form, 'product': product})
+        return redirect('dashboard:product_edit', pk=saved.pk) if '_continue' in request.POST else redirect('dashboard:products')
+    return render(request, 'dashboard/product_form.html', {
+        'form': form, 'variants': variants, 'images': images, 'product': product if product.pk else None,
+        'brands': Brand.objects.values_list('name', flat=True),
+    })
 
 
 @staff_required
@@ -132,28 +151,35 @@ def product_delete(request, pk):
         return redirect('dashboard:products')
     return render(request, 'dashboard/confirm_delete.html', {
         'title': 'ลบสินค้า', 'object_name': product.name, 'back': 'dashboard:products',
-        'warning': 'ประวัติคำสั่งซื้อเดิมจะยังอยู่ แต่สินค้านี้จะหายจากร้านถาวร หากต้องการเพียงซ่อนสินค้า ให้ปิด "แสดงสินค้า" แทน',
+        'warning': 'ประวัติคำสั่งซื้อเดิมจะยังอยู่ แต่สินค้านี้และตัวเลือกทั้งหมดจะหายจากร้านถาวร หากต้องการเพียงซ่อนสินค้า ให้ปิด "แสดงสินค้า" แทน',
     })
 
 
 @staff_required
 @require_POST
 def product_quick(request, pk):
-    """Ajax: update stock or visibility straight from the list."""
+    """Ajax: toggle visibility straight from the product list."""
     product = get_object_or_404(Product, pk=pk)
-    if 'stock' in request.POST:
-        try:
-            stock = int(request.POST['stock'])
-        except ValueError:
-            stock = -1
-        if not 0 <= stock <= 1_000_000:
-            return JsonResponse({'ok': False, 'message': 'จำนวนสต็อกไม่ถูกต้อง', 'stock': product.stock}, status=400)
-        product.stock = stock
-        product.save(update_fields=['stock'])
     if 'is_active' in request.POST:
         product.is_active = request.POST['is_active'] == '1'
         product.save(update_fields=['is_active'])
-    return JsonResponse({'ok': True, 'stock': product.stock, 'is_active': product.is_active, 'message': 'บันทึกแล้ว'})
+    return JsonResponse({'ok': True, 'is_active': product.is_active, 'message': 'บันทึกแล้ว'})
+
+
+@staff_required
+@require_POST
+def variant_quick(request, pk):
+    """Ajax: update one variant's stock (low-stock table on the dashboard)."""
+    variant = get_object_or_404(ProductVariant, pk=pk)
+    try:
+        stock = int(request.POST.get('stock', ''))
+    except ValueError:
+        stock = -1
+    if not 0 <= stock <= 1_000_000:
+        return JsonResponse({'ok': False, 'message': 'จำนวนสต็อกไม่ถูกต้อง', 'stock': variant.stock}, status=400)
+    variant.stock = stock
+    variant.save(update_fields=['stock'])
+    return JsonResponse({'ok': True, 'stock': variant.stock, 'message': 'บันทึกแล้ว'})
 
 
 # ------------------------------------------------------------ categories

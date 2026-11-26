@@ -31,3 +31,15 @@ def image_file(name='slip.png', fmt='PNG', size=(30, 30)):
     buf = io.BytesIO()
     Image.new('RGB', size, '#0b0b5c').save(buf, fmt)
     return SimpleUploadedFile(name, buf.getvalue(), content_type=f'image/{fmt.lower()}')
+
+
+def make_variant(category, name, slug, price, stock=0, compare_price=None, color='', size='', product=None, **product_kw):
+    """Create a product (unless given) with one variant and return the variant; tests buy variants."""
+    from decimal import Decimal
+
+    from .models import Product, ProductVariant
+    if product is None:
+        product = Product.objects.create(category=category, name=name, slug=slug, **product_kw)
+    return ProductVariant.objects.create(
+        product=product, price=Decimal(str(price)), stock=stock, color=color, size=size,
+        compare_price=Decimal(str(compare_price)) if compare_price is not None else None)

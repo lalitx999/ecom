@@ -25,6 +25,7 @@
 </header>
 {% endblock %}
 {% block tabbar %}{% endblock %}
+{% block scripts %}<script src="{% load static %}{% static 'js/product.js' %}"></script>{% endblock %}
 
 {% block content %}
 <div class="container py-3 py-lg-4">
@@ -32,37 +33,83 @@
     <a href="{% url 'shop:home' %}">หน้าหลัก</a> / <a href="{% url 'shop:product_list' %}?category={{ product.category.slug }}">{{ product.category.name }}</a> / {{ product.name }}
   </nav>
 
-  <div class="row g-4">
+  <div class="row g-4" data-variant-picker>
+    <script type="application/json" id="variant-data">{{ variant_json|safe }}</script>
     <div class="col-lg-6">
-      <div class="detail-gallery ratio ratio-1x1"><img src="{{ product.image_url }}" alt="{{ product.name }}"></div>
+      <div class="detail-gallery ratio ratio-1x1"><img id="mainImage" src="{{ product.image_url }}" alt="{{ product.name }}"></div>
+      {% if images|length > 1 %}
+      <div class="thumb-strip mt-2" role="list">
+        {% for img in images %}
+          <button type="button" class="thumb-btn{% if forloop.first %} active{% endif %}" data-image="{{ img.image.url }}" data-color="{{ img.color }}" aria-label="รูปที่ {{ forloop.counter }}" role="listitem"><img src="{{ img.image.url }}" alt="" loading="lazy"></button>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
     <div class="col-lg-6">
-      {% if product.brand %}<div class="product-brand mb-1">{{ product.brand }}</div>{% endif %}
+      {% if product.brand %}<a class="product-brand mb-1 d-inline-block" href="{% url 'shop:product_list' %}?brand={{ product.brand.slug }}">{{ product.brand.name }}</a>{% endif %}
       <h1 class="detail-title">{{ product.name }}</h1>
-      {% if product.size %}<div class="text-muted-2 mb-2">ขนาดบรรจุภัณฑ์: {{ product.size }}</div>{% endif %}
-      {% if product.on_sale %}<span class="pill-navy mb-2">ลดสูงสุด {{ product.discount_percent }}%</span>{% endif %}
-      <div class="mb-3">
-        <span class="detail-price">{{ product.price|baht }} บาท</span>
-        {% if product.on_sale %}<span class="detail-price-old">{{ product.compare_price|baht }} บาท</span>{% endif %}
+      <div class="mb-3" data-price-box>
+        {% with v=selected|default:product.cheapest %}
+        <span class="pill-navy mb-2{% if not v.on_sale %} d-none{% endif %}" data-discount>ลด {{ v.discount_percent }}%</span><br>
+        <span class="detail-price" data-price>{% if not selected and product.has_price_range %}{{ product.min_price|baht }} - {{ product.max_price|baht }}{% else %}{{ v.price|baht }}{% endif %} บาท</span>
+        <span class="detail-price-old{% if not v.on_sale or not selected and product.has_price_range %} d-none{% endif %}" data-compare>{{ v.compare_price|baht }} บาท</span>
+        {% endwith %}
       </div>
 
-      {% if product.in_stock %}
-        <div class="text-muted-2 mb-3">{% if product.stock <= 10 %}เหลือ {{ product.stock }} ชิ้นสุดท้าย{% else %}มีสินค้าพร้อมส่ง{% endif %}</div>
-        <div class="buy-bar">
-          <div class="stepper" data-stepper>
-            <button type="button" data-step="-1" aria-label="ลดจำนวน" disabled>{% icon 'minus' 20 %}</button>
-            <input type="number" id="qty" value="1" min="1" max="{{ max_qty }}" inputmode="numeric" aria-label="จำนวน">
-            <button type="button" data-step="1" aria-label="เพิ่มจำนวน" {% if max_qty <= 1 %}disabled{% endif %}>{% icon 'plus' 20 %}</button>
-          </div>
-          <button type="button" class="btn btn-primary btn-add js-add-to-cart" data-product-id="{{ product.pk }}" data-qty-input="#qty">เพิ่มลงในตะกร้า</button>
+      {% if colors %}
+      <div class="option-group mb-3">
+        <div class="option-label">สี: <span data-color-label class="fw-semibold">{% if selected %}{{ selected.color }}{% else %}เลือกสี{% endif %}</span></div>
+        <div class="option-row">
+          {% for c in colors %}<button type="button" class="option-btn" data-color="{{ c }}">{{ c }}</button>{% endfor %}
         </div>
-      {% else %}
-        <div class="buy-bar"><button class="btn btn-primary btn-add" disabled>สินค้าหมด</button></div>
+      </div>
+      {% endif %}
+
+      {% if sizes %}
+      <div class="option-group mb-3">
+        <div class="option-label">{% if product.category.slug == 'shoes' %}ไซซ์ (US){% else %}ไซซ์{% endif %}: <span data-size-label class="fw-semibold">{% if selected %}{{ selected.size }}{% else %}เลือกไซซ์{% endif %}</span></div>
+        <div class="option-row">
+          {% for s in sizes %}<button type="button" class="option-btn" data-size="{{ s }}">{{ s }}</button>{% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="text-muted-2 mb-3" data-stock-note>
+        {% if not product.in_stock %}สินค้าหมด
+        {% elif selected %}{% if selected.stock <= 10 %}เหลือ {{ selected.stock }} ชิ้นสุดท้าย{% else %}มีสินค้าพร้อมส่ง{% endif %}{% if selected.ready_to_ship %} · พร้อมส่ง{% endif %}
+        {% else %}เลือกตัวเลือกเพื่อดูราคาและจำนวนสินค้า{% endif %}
+      </div>
+
+      <div class="buy-bar">
+        <div class="stepper" data-stepper>
+          <button type="button" data-step="-1" aria-label="ลดจำนวน" disabled>{% icon 'minus' 20 %}</button>
+          <input type="number" id="qty" value="1" min="1" max="{% if selected %}{{ selected.stock|default:1 }}{% else %}1{% endif %}" inputmode="numeric" aria-label="จำนวน">
+          <button type="button" data-step="1" aria-label="เพิ่มจำนวน" {% if not selected or selected.stock <= 1 %}disabled{% endif %}>{% icon 'plus' 20 %}</button>
+        </div>
+        <button type="button" class="btn btn-primary btn-add js-add-to-cart" data-variant-id="{% if selected and selected.in_stock %}{{ selected.pk }}{% endif %}" data-qty-input="#qty"
+                {% if not selected or not selected.in_stock %}disabled{% endif %}>{% if not product.in_stock %}สินค้าหมด{% elif selected %}เพิ่มลงในตะกร้า{% else %}เลือกตัวเลือก{% endif %}</button>
+      </div>
+
+      {% if product.set_contents_list %}
+        <h2 class="h6 fw-bold mt-4 mb-2 pt-lg-3">สิ่งที่อยู่ในชุด</h2>
+        <ul class="rich-list">{% for line in product.set_contents_list %}<li>{{ line }}</li>{% endfor %}</ul>
       {% endif %}
 
       {% if product.description %}
-        <h2 class="h6 fw-bold mt-4 mb-2 pt-lg-3">ข้อมูลสินค้า</h2>
+        <h2 class="h6 fw-bold mt-4 mb-2">ข้อมูลสินค้า</h2>
         <div class="rich-text">{{ product.description }}</div>
+      {% endif %}
+
+      {% if product.how_to_use_list %}
+        <h2 class="h6 fw-bold mt-4 mb-2">วิธีใช้</h2>
+        <ol class="rich-list">{% for line in product.how_to_use_list %}<li>{{ line }}</li>{% endfor %}</ol>
+      {% endif %}
+
+      {% if product.expiry_date or product.origin %}
+        <dl class="spec-list mt-4">
+          {% if product.expiry_date %}<dt>วันหมดอายุ</dt><dd>{{ product.expiry_date|date:"F Y" }}</dd>{% endif %}
+          {% if product.origin %}<dt>ผลิตที่</dt><dd>{{ product.origin }}</dd>{% endif %}
+        </dl>
       {% endif %}
     </div>
   </div>

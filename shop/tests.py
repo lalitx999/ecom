@@ -7,9 +7,9 @@ from django.core import mail
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import Category, Order, Product
+from .models import Category, Order, Product, ProductVariant
 from .services import InvalidTransition, SlipNotAllowed, attach_slip, change_order_status
-from .testing import SlipStorageMixin, image_file
+from .testing import SlipStorageMixin, image_file, make_variant
 
 User = get_user_model()
 
@@ -23,14 +23,15 @@ class ShopTestCase(SlipStorageMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         cat = Category.objects.create(name='หมวด', slug='cat')
-        cls.cheap = Product.objects.create(category=cat, name='ถูก', slug='cheap', price=Decimal('100'), stock=5)
-        cls.pricey = Product.objects.create(category=cat, name='แพง', slug='pricey', price=Decimal('600'), compare_price=Decimal('800'), stock=2)
-        cls.out = Product.objects.create(category=cat, name='หมด', slug='out', price=Decimal('50'), stock=0)
+        cls.cat = cat
+        cls.cheap = make_variant(cat, 'ถูก', 'cheap', 100, stock=5)
+        cls.pricey = make_variant(cat, 'แพง', 'pricey', 600, stock=2, compare_price=800)
+        cls.out = make_variant(cat, 'หมด', 'out', 50, stock=0)
         cls.user = User.objects.create_user('a@example.com', 'a@example.com', 'pw-Test-12345', first_name='A')
         cls.other = User.objects.create_user('b@example.com', 'b@example.com', 'pw-Test-12345')
 
-    def add(self, product, qty=1):
-        return self.client.post(reverse('shop:cart_add'), {'product_id': product.pk, 'qty': qty})
+    def add(self, variant, qty=1):
+        return self.client.post(reverse('shop:cart_add'), {'variant_id': variant.pk, 'qty': qty})
 
 
 class CartTests(ShopTestCase):
@@ -71,7 +72,7 @@ class CheckoutTests(ShopTestCase):
         self.assertEqual((order.subtotal, order.shipping_fee, order.total), (Decimal('200'), Decimal('50'), Decimal('250')))
         self.assertEqual(order.phone, '0812345678')
         self.assertEqual(order.status, Order.Status.PROCESSING)
-        self.assertTrue(order.number.startswith('LM'))
+        self.assertTrue(order.number.startswith('NS'))
         self.cheap.refresh_from_db()
         self.assertEqual(self.cheap.stock, 3)
         self.assertEqual(self.client.get(reverse('shop:cart')).context['cart'].is_empty, True)
@@ -85,7 +86,7 @@ class CheckoutTests(ShopTestCase):
     def test_insufficient_stock_creates_no_order(self):
         self.add(self.pricey, 2)
         self.client.force_login(self.user)
-        Product.objects.filter(pk=self.pricey.pk).update(stock=1)  # someone else bought one
+        ProductVariant.objects.filter(pk=self.pricey.pk).update(stock=1)  # someone else bought one
         r = self.client.post(reverse('shop:checkout'), ADDRESS)
         self.assertRedirects(r, reverse('shop:cart'))
         self.assertEqual(Order.objects.count(), 0)
@@ -106,7 +107,7 @@ class CheckoutTests(ShopTestCase):
         self.add(self.cheap)
         self.client.force_login(self.user)
         self.client.post(reverse('shop:checkout'), ADDRESS)
-        Product.objects.filter(pk=self.cheap.pk).update(price=Decimal('999'))
+        ProductVariant.objects.filter(pk=self.cheap.pk).update(price=Decimal('999'))
         self.assertEqual(Order.objects.get().items.get().unit_price, Decimal('100'))
 
 
@@ -347,7 +348,7 @@ class PasswordResetTests(ShopTestCase):
         self.assertRedirects(r, reverse('shop:password_reset_done'))
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn('/password-reset/', mail.outbox[0].body)
-        self.assertIn('Lumé', mail.outbox[0].subject)
+        self.assertIn('NS SELECT', mail.outbox[0].subject)
 
     def test_unknown_email_gives_same_response_and_no_mail(self):
         r = self.client.post(reverse('shop:password_reset'), {'email': 'nobody@example.com'})
@@ -380,7 +381,7 @@ class FooterTests(ShopTestCase):
 
     def test_footer_appears_on_other_pages_and_staff_link(self):
         self.client.force_login(User.objects.create_user('s@example.com', 's@example.com', 'pw-Test-12345', is_staff=True))
-        for url in (reverse('shop:cart'), self.pricey.get_absolute_url(), reverse('shop:product_list')):
+        for url in (reverse('shop:cart'), self.pricey.product.get_absolute_url(), reverse('shop:product_list')):
             r = self.client.get(url)
             self.assertContains(r, 'site-footer')
             self.assertContains(r, 'จัดการร้าน')
@@ -398,3 +399,93 @@ class FooterTests(ShopTestCase):
         self.assertNotContains(r, 'instagram.com')
         self.assertNotContains(r, '<script>x</script>')           # address is escaped
         self.assertContains(r, '&lt;script&gt;')
+
+
+class VariantStorefrontTests(ShopTestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.m = make_variant(cls.cat, 'เสื้อยืด', 'tee', 300, stock=3, color='ดำ', size='M')
+        cls.tee = cls.m.product
+        cls.l = make_variant(None, '', '', 350, stock=0, color='ดำ', size='L', product=cls.tee)
+        cls.xs = make_variant(None, '', '', 900, stock=1, color='ขาว', size='XS', product=cls.tee, compare_price=1000)
+
+    def test_card_shows_from_price_and_needs_a_choice(self):
+        r = self.client.get(reverse('shop:product_list'))
+        self.assertContains(r, 'เริ่มต้น 300 บาท')
+        self.assertContains(r, 'เลือกตัวเลือก')        # no direct add-to-cart for a product with options
+
+    def test_detail_lists_options_and_variant_data(self):
+        r = self.client.get(self.tee.get_absolute_url())
+        self.assertContains(r, 'data-color="ดำ"')
+        self.assertContains(r, 'data-size="XS"')
+        self.assertEqual([s for s in r.context['sizes']], ['XS', 'M', 'L'])   # clothing order, not alphabetical
+        self.assertIn('"stock": 0', r.context['variant_json'])               # sold-out size is shown greyed out
+
+    def test_each_variant_is_its_own_cart_line_with_own_stock(self):
+        self.add(self.m, 5)
+        self.add(self.xs, 1)
+        cart = self.client.get(reverse('shop:cart')).context['cart']
+        self.assertEqual([(l.variant.size, l.qty) for l in cart], [('M', 3), ('XS', 1)])
+        self.assertEqual(cart.subtotal, Decimal('1800'))
+        self.assertEqual(self.add(self.l).status_code, 409)                  # sold-out size
+
+    def test_inactive_variant_cannot_be_bought(self):
+        self.add(self.m, 1)
+        ProductVariant.objects.filter(pk=self.m.pk).update(is_active=False)
+        self.assertTrue(self.client.get(reverse('shop:cart')).context['cart'].is_empty)
+        self.assertEqual(self.add(self.m).status_code, 400)
+
+    def test_order_item_keeps_colour_size_and_restocks_variant(self):
+        self.add(self.m, 2)
+        self.client.force_login(self.user)
+        self.client.post(reverse('shop:checkout'), ADDRESS)
+        item = Order.objects.get().items.get()
+        self.assertEqual((item.color, item.size, item.variant_label, item.unit_price), ('ดำ', 'M', 'ดำ / M', Decimal('300')))
+        self.m.refresh_from_db()
+        self.assertEqual(self.m.stock, 1)
+        change_order_status(item.order, 'cancelled')
+        self.m.refresh_from_db()
+        self.assertEqual(self.m.stock, 3)
+
+    def test_size_and_brand_filters_and_price_sort(self):
+        r = self.client.get(reverse('shop:product_list'), {'size': 'XS'})
+        self.assertEqual([p.pk for p in r.context['page']], [self.tee.pk])
+        self.assertIn('XS', r.context['sizes'])
+        self.assertNotIn('L', r.context['sizes'])                            # only sizes that are in stock
+        r = self.client.get(reverse('shop:product_list'), {'sort': 'price_desc'})
+        self.assertEqual(r.context['page'][0].pk, self.pricey.product.pk)    # 600 > 300 (tee's lowest)
+
+
+class ImportCommandTests(TestCase):
+    def test_import_is_repeatable_and_keeps_stock(self):
+        import json
+        import shutil
+        import tempfile
+        from pathlib import Path
+
+        from django.core.management import call_command
+        from django.test import override_settings
+
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            (tmp / 'Work' / 'a').mkdir(parents=True)
+            image_file('p.png').file.seek(0)
+            (tmp / 'Work' / 'a' / 'photo').write_bytes(image_file('p.png').read())   # no extension, like the real folder
+            data = {'categories': [{'key': 'shoes', 'name': 'รองเท้า'}], 'products': [{
+                'category': 'shoes', 'brand': 'Brand X', 'name': 'Runner One', 'images': ['a/photo'], 'source_screens': [],
+                'variants': [{'size': 'US 9', 'price': 3500, 'available': True, 'fast': True},
+                             {'size': 'US 10', 'price': None, 'available': False}]}]}
+            (tmp / 'data.json').write_text(json.dumps(data), encoding='utf-8')
+            with override_settings(MEDIA_ROOT=str(tmp / 'media')):
+                call_command('import_ns_select', data=str(tmp / 'data.json'), source=str(tmp / 'Work'), stdout=open('/dev/null', 'w'))
+                p = Product.objects.get(slug='runner-one')
+                v = p.variants.get()
+                self.assertEqual((v.size, v.price, v.stock, v.ready_to_ship), ('US 9', Decimal('3500'), 1, True))  # sold-out size skipped
+                self.assertEqual(p.images.count(), 1)
+                ProductVariant.objects.filter(pk=v.pk).update(stock=8)
+                call_command('import_ns_select', data=str(tmp / 'data.json'), source=str(tmp / 'Work'), stdout=open('/dev/null', 'w'))
+                self.assertEqual((Product.objects.count(), ProductVariant.objects.count(), p.images.count()), (1, 1, 1))
+                self.assertEqual(ProductVariant.objects.get().stock, 8)                                # stock not overwritten
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)

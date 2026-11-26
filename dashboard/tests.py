@@ -10,8 +10,8 @@ from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
 
-from shop.models import Category, Order, OrderItem, Product
-from shop.testing import SlipStorageMixin, image_file
+from shop.models import Brand, Category, Order, OrderItem, Product, ProductImage, ProductVariant
+from shop.testing import SlipStorageMixin, image_file, make_variant
 
 User = get_user_model()
 
@@ -26,8 +26,9 @@ class Base(SlipStorageMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.cat = Category.objects.create(name='หมวด', slug='cat')
-        cls.p1 = Product.objects.create(category=cls.cat, name='สินค้า A', slug='a', price=Decimal('100'), stock=10)
-        cls.p2 = Product.objects.create(category=cls.cat, name='สินค้า B', slug='b', price=Decimal('300'), stock=2)
+        cls.v1 = make_variant(cls.cat, 'สินค้า A', 'a', 100, stock=10)
+        cls.v2 = make_variant(cls.cat, 'สินค้า B', 'b', 300, stock=2)
+        cls.p1, cls.p2 = cls.v1.product, cls.v2.product
         cls.root = User.objects.create_superuser('root@example.com', 'root@example.com', 'pw-Test-12345', first_name='Root')
         cls.staff = User.objects.create_user('staff@example.com', 'staff@example.com', 'pw-Test-12345', is_staff=True)
         cls.cust = User.objects.create_user('cust@example.com', 'cust@example.com', 'pw-Test-12345', first_name='ลูกค้า')
@@ -38,8 +39,8 @@ class Base(SlipStorageMixin, TestCase):
                                  subtotal=total - Decimal('50'), shipping_fee=Decimal('50'), total=total)
         Order.objects.filter(pk=o.pk).update(created_at=timezone.now() - timedelta(days=days_ago))
         for which, qty in items:
-            p = self.p1 if which == 1 else self.p2
-            OrderItem.objects.create(order=o, product=p, name=p.name, unit_price=p.price, qty=qty)
+            v = self.v1 if which == 1 else self.v2
+            OrderItem.objects.create(order=o, product=v.product, variant=v, name=v.product.name, unit_price=v.price, qty=qty)
         o.refresh_from_db()
         return o
 
@@ -81,21 +82,42 @@ class ProductTests(Base):
     def setUp(self):
         self.client.force_login(self.staff)
 
-    def data(self, **kw):
-        d = {'name': 'โลชั่น ใหม่', 'category': self.cat.pk, 'brand': 'X', 'size': '100 มล.', 'description': 'd', 'price': '199',
-             'compare_price': '', 'stock': '5', 'is_active': 'on', 'slug': ''}
+    def data(self, variants=None, images=0, initial=0, **kw):
+        """POST body for the product form: product fields + variants/images formsets."""
+        d = {'name': 'โลชั่น ใหม่', 'category': self.cat.pk, 'brand_name': 'X', 'description': 'd', 'is_active': 'on', 'slug': '',
+             'images-TOTAL_FORMS': str(images), 'images-INITIAL_FORMS': '0', 'images-MIN_NUM_FORMS': '0', 'images-MAX_NUM_FORMS': '1000'}
+        variants = variants if variants is not None else [{'price': '199', 'stock': '5'}]
+        d.update({'variants-TOTAL_FORMS': str(len(variants)), 'variants-INITIAL_FORMS': str(initial),
+                  'variants-MIN_NUM_FORMS': '0', 'variants-MAX_NUM_FORMS': '1000'})
+        for i, v in enumerate(variants):
+            row = {'color': '', 'size': '', 'sku': '', 'price': '', 'compare_price': '', 'stock': '0', 'is_active': 'on', 'sort_order': '0', **v}
+            d.update({f'variants-{i}-{k}': val for k, val in row.items()})
         d.update(kw)
         return d
 
-    def test_create_with_image_and_auto_slug(self):
-        r = self.client.post(reverse('dashboard:product_new'), {**self.data(), 'image': png()})
+    def test_create_with_variants_image_brand_and_auto_slug(self):
+        body = self.data(variants=[{'color': 'ดำ', 'size': 'M', 'price': '590', 'stock': '3'},
+                                   {'color': 'ดำ', 'size': 'L', 'price': '650', 'compare_price': '700', 'stock': '0'}],
+                         images=1, **{'images-0-image': png(), 'images-0-color': 'ดำ', 'images-0-sort_order': '0'})
+        r = self.client.post(reverse('dashboard:product_new'), body)
         self.assertRedirects(r, reverse('dashboard:products'))
         p = Product.objects.get(name='โลชั่น ใหม่')
         self.assertTrue(p.slug)
-        self.assertTrue(p.image.name.startswith('products/'))
+        self.assertEqual(p.brand.name, 'X')
+        self.assertEqual(sorted(p.variants.values_list('size', 'stock')), [('L', 0), ('M', 3)])
+        self.assertTrue(all(v.sku for v in p.variants.all()))      # SKU generated
+        img = p.images.get()
+        self.assertTrue(img.image.name.startswith('products/'))
         self.assertTrue(p.is_active and not p.is_new)
-        self.assertEqual(self.client.get(f'/products/{p.slug}/').status_code, 200)  # live on the storefront
-        p.image.delete(save=False)
+        r = self.client.get(f'/products/{p.slug}/')                # live on the storefront
+        self.assertContains(r, 'data-size="M"')
+        img.image.delete(save=False)
+
+    def test_existing_brand_is_reused(self):
+        Brand.objects.create(name='Sulwhasoo', slug='sulwhasoo')
+        self.client.post(reverse('dashboard:product_new'), self.data(brand_name='sulwhasoo'))
+        self.assertEqual(Brand.objects.count(), 1)
+        self.assertEqual(Product.objects.get(name='โลชั่น ใหม่').brand.name, 'Sulwhasoo')
 
     def test_slug_unique_suffix(self):
         for _ in range(2):
@@ -103,30 +125,55 @@ class ProductTests(Base):
         self.assertEqual(sorted(Product.objects.filter(name='ซ้ำ').values_list('slug', flat=True)), ['ซ้ำ', 'ซ้ำ-2'])
 
     def test_validation(self):
-        r = self.client.post(reverse('dashboard:product_new'), self.data(price='0'))
-        self.assertIn('price', r.context['form'].errors)
-        r = self.client.post(reverse('dashboard:product_new'), self.data(price='100', compare_price='90'))
-        self.assertIn('compare_price', r.context['form'].errors)
-        r = self.client.post(reverse('dashboard:product_new'), self.data(stock='-1'))
-        self.assertIn('stock', r.context['form'].errors)
-        r = self.client.post(reverse('dashboard:product_new'), {**self.data(), 'image': SimpleUploadedFile('x.png', b'not an image', content_type='image/png')})
-        self.assertIn('image', r.context['form'].errors)
+        def errors(body):
+            r = self.client.post(reverse('dashboard:product_new'), body)
+            self.assertEqual(r.status_code, 200)
+            return r.context['variants']
+        self.assertIn('price', errors(self.data(variants=[{'price': '0'}])).forms[0].errors)
+        self.assertIn('compare_price', errors(self.data(variants=[{'price': '100', 'compare_price': '90'}])).forms[0].errors)
+        self.assertIn('stock', errors(self.data(variants=[{'price': '100', 'stock': '-1'}])).forms[0].errors)
+        self.assertTrue(errors(self.data(variants=[])).non_form_errors())                 # needs at least one variant
+        dup = errors(self.data(variants=[{'size': 'M', 'price': '1'}, {'size': 'M', 'price': '2'}]))
+        self.assertTrue(any(f.errors for f in dup.forms))                                # same colour+size twice
+        r = self.client.post(reverse('dashboard:product_new'), self.data(images=1, **{
+            'images-0-image': SimpleUploadedFile('x.png', b'not an image', content_type='image/png'), 'images-0-sort_order': '0'}))
+        self.assertIn('image', r.context['images'].forms[0].errors)
+        self.assertFalse(Product.objects.filter(name='โลชั่น ใหม่').exists())
 
-    def test_edit(self):
-        r = self.client.post(reverse('dashboard:product_edit', args=[self.p1.pk]), self.data(name='ชื่อใหม่', slug='a', price='150', compare_price='200', is_new='on'))
+    def test_edit_and_delete_variant(self):
+        v_extra = make_variant(None, '', '', 120, stock=1, size='XL', product=self.p1)
+        body = self.data(initial=2, name='ชื่อใหม่', slug='a', is_new='on', variants=[
+            {'id': str(self.v1.pk), 'price': '150', 'compare_price': '200', 'stock': '7'},
+            {'id': str(v_extra.pk), 'size': 'XL', 'price': '120', 'stock': '1', 'DELETE': 'on'}])
+        r = self.client.post(reverse('dashboard:product_edit', args=[self.p1.pk]), body)
         self.assertRedirects(r, reverse('dashboard:products'))
         self.p1.refresh_from_db()
-        self.assertEqual((self.p1.name, self.p1.price, self.p1.discount_percent, self.p1.is_new), ('ชื่อใหม่', Decimal('150'), 25, True))
+        self.v1.refresh_from_db()
+        self.assertEqual((self.p1.name, self.p1.is_new), ('ชื่อใหม่', True))
+        self.assertEqual((self.v1.price, self.v1.stock, self.v1.discount_percent), (Decimal('150'), 7, 25))
+        self.assertFalse(ProductVariant.objects.filter(pk=v_extra.pk).exists())
 
-    def test_quick_update(self):
-        url = reverse('dashboard:product_quick', args=[self.p1.pk])
+    def test_quick_visibility_and_variant_stock(self):
+        url = reverse('dashboard:variant_quick', args=[self.v1.pk])
         self.assertEqual(self.client.post(url, {'stock': '42'}).json()['stock'], 42)
         self.assertEqual(self.client.post(url, {'stock': '-3'}).status_code, 400)
         self.assertEqual(self.client.post(url, {'stock': 'abc'}).status_code, 400)
-        self.client.post(url, {'is_active': '0'})
+        self.client.post(reverse('dashboard:product_quick', args=[self.p1.pk]), {'is_active': '0'})
         self.p1.refresh_from_db()
-        self.assertEqual((self.p1.stock, self.p1.is_active), (42, False))
+        self.v1.refresh_from_db()
+        self.assertEqual((self.v1.stock, self.p1.is_active), (42, False))
         self.assertEqual(self.client.get('/products/a/').status_code, 404)  # hidden from the shop
+
+    def test_list_shows_price_range_and_stock_filters(self):
+        make_variant(None, '', '', 900, stock=0, size='L', product=self.p1)
+        r = self.client.get(reverse('dashboard:products'))
+        self.assertContains(r, '100 - 900')
+        def pks(state):
+            return {p.pk for p in self.client.get(reverse('dashboard:products'), {'state': state}).context['page'].object_list}
+        self.assertEqual(pks('low'), {self.p1.pk, self.p2.pk})   # A has a sold-out size, B has 2 left
+        self.assertEqual(pks('out'), set())
+        ProductVariant.objects.filter(product=self.p2).update(stock=0)
+        self.assertEqual(pks('out'), {self.p2.pk})
 
     def test_delete_keeps_order_history(self):
         order = self.make_order()
@@ -178,8 +225,8 @@ class OrderTests(Base):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ['cust@example.com'])
         self.client.post(url, {'status': 'cancelled'})
-        self.p1.refresh_from_db()
-        self.assertEqual(self.p1.stock, 12)
+        self.v1.refresh_from_db()
+        self.assertEqual(self.v1.stock, 12)
         self.client.post(url, {'status': 'processing'})  # final
         o.refresh_from_db()
         self.assertEqual(o.status, 'cancelled')
@@ -290,7 +337,7 @@ class ReportTests(Base):
         r = self.client.get(reverse('dashboard:home'))
         self.assertEqual(r.context['month']['revenue'], Decimal('900'))
         self.assertEqual(r.context['to_process'], 1)
-        self.assertEqual(r.context['low_stock_count'], 1)  # product B has stock 2
+        self.assertEqual(r.context['low_stock_count'], 1)  # product B's variant has stock 2
 
 
 class PaymentAndShippingFlowTests(Base):

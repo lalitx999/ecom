@@ -1,46 +1,96 @@
 {% extends 'dashboard/base.html' %}
-{% load shop_extras %}
+{% load static shop_extras %}
 {% block title %}{% if product %}แก้ไขสินค้า{% else %}เพิ่มสินค้า{% endif %}{% endblock %}
 {% block heading %}{% if product %}แก้ไขสินค้า{% else %}เพิ่มสินค้า{% endif %}{% endblock %}
 {% block content %}
 <form method="post" enctype="multipart/form-data" novalidate>
   {% csrf_token %}
   {% if form.non_field_errors %}<div class="flash flash-error">{{ form.non_field_errors.0 }}</div>{% endif %}
+  <datalist id="brand-options">{% for b in brands %}<option value="{{ b }}">{% endfor %}</datalist>
   <div class="row g-3">
     <div class="col-lg-8">
-      <div class="panel"><div class="panel-body">
+      <div class="panel mb-3"><div class="panel-body">
         {% include 'shop/_field.html' with field=form.name %}
-        <div class="row"><div class="col-md-6">{% include 'shop/_field.html' with field=form.category %}</div><div class="col-md-6">{% include 'shop/_field.html' with field=form.brand %}</div></div>
-        {% include 'shop/_field.html' with field=form.size %}
+        <div class="row">
+          <div class="col-md-6">{% include 'shop/_field.html' with field=form.category %}</div>
+          <div class="col-md-6">{% include 'shop/_field.html' with field=form.brand_name %}</div>
+        </div>
         {% include 'shop/_field.html' with field=form.description %}
+        {% include 'shop/_field.html' with field=form.set_contents %}
+        {% include 'shop/_field.html' with field=form.how_to_use %}
+        <div class="row">
+          <div class="col-md-6">{% include 'shop/_field.html' with field=form.origin %}</div>
+          <div class="col-md-6">{% include 'shop/_field.html' with field=form.expiry_date %}</div>
+        </div>
         {% include 'shop/_field.html' with field=form.slug %}
         {% if form.slug.help_text %}<div class="cell-sub" style="margin-top:-.75rem">{{ form.slug.help_text }}</div>{% endif %}
       </div></div>
+
+      <!-- Variants -->
+      <div class="panel mb-3">
+        <div class="panel-head"><h2>ตัวเลือกสินค้า (สี × ไซซ์)</h2>
+          <button type="button" class="btn btn-outline-primary btn-sm js-add-row" data-prefix="variants">{% icon 'plus' 16 %} เพิ่มตัวเลือก</button></div>
+        <div class="panel-body pt-0">
+          <p class="cell-sub">สินค้าที่ไม่มีสีหรือไซซ์ (เช่น ชุดครีม) ให้มี 1 แถวและเว้นช่องสี/ไซซ์ว่าง | ไซซ์ที่หมดให้ใส่สต็อก 0</p>
+          {{ variants.management_form }}
+          {% for e in variants.non_form_errors %}<div class="flash flash-error">{{ e }}</div>{% endfor %}
+          <div class="table-responsive"><table class="table variant-table align-middle">
+            <thead><tr><th>สี</th><th>ไซซ์</th><th>ราคาขาย</th><th>ราคาปกติ</th><th>สต็อก</th><th>SKU</th><th class="text-center">พร้อมส่ง</th><th class="text-center">เปิดขาย</th><th>ลำดับ</th><th class="text-center">ลบ</th></tr></thead>
+            <tbody data-rows="variants">
+              {% for f in variants %}{% include 'dashboard/_variant_row.html' %}{% endfor %}
+            </tbody>
+          </table></div>
+          <template data-empty="variants">{% with f=variants.empty_form %}{% include 'dashboard/_variant_row.html' %}{% endwith %}</template>
+        </div>
+      </div>
+
+      <!-- Images -->
+      <div class="panel mb-3">
+        <div class="panel-head"><h2>รูปสินค้า</h2>
+          <button type="button" class="btn btn-outline-primary btn-sm js-add-row" data-prefix="images">{% icon 'plus' 16 %} เพิ่มรูป</button></div>
+        <div class="panel-body pt-0">
+          <p class="cell-sub">รูปลำดับน้อยสุดเป็นรูปปก | ใส่ "ใช้กับสี" ให้ตรงกับสีของตัวเลือก เพื่อเปลี่ยนรูปเมื่อลูกค้าเลือกสี | JPG, PNG, WebP ไม่เกิน 5 MB</p>
+          {{ images.management_form }}
+          {% for e in images.non_form_errors %}<div class="flash flash-error">{{ e }}</div>{% endfor %}
+          <div class="row g-3" data-rows="images">
+            {% for f in images %}{% include 'dashboard/_image_row.html' %}{% endfor %}
+          </div>
+          <template data-empty="images">{% with f=images.empty_form %}{% include 'dashboard/_image_row.html' %}{% endwith %}</template>
+        </div>
+      </div>
     </div>
+
     <div class="col-lg-4">
-      <div class="panel mb-3"><div class="panel-body">
-        <img id="imgPreview" class="img-preview mb-3" src="{% if product %}{{ product.image_url }}{% else %}{% load static %}{% static 'img/placeholder.svg' %}{% endif %}" alt="">
-        <label class="form-label" for="{{ form.image.id_for_label }}">รูปสินค้า</label>
-        {{ form.image }}
-        <div class="cell-sub mt-1">JPG, PNG, WebP ไม่เกิน 5 MB (แนะนำรูปสี่เหลี่ยมจัตุรัส)</div>
-        {% for e in form.image.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
-      </div></div>
-      <div class="panel mb-3"><div class="panel-body">
-        {% include 'shop/_field.html' with field=form.price %}
-        {% include 'shop/_field.html' with field=form.compare_price %}
-        {% include 'shop/_field.html' with field=form.stock %}
-      </div></div>
       <div class="panel mb-3"><div class="panel-body">
         {% include 'dashboard/_check.html' with field=form.is_active %}
         {% include 'dashboard/_check.html' with field=form.is_new %}
         {% include 'dashboard/_check.html' with field=form.is_best_seller %}
+        {% include 'dashboard/_check.html' with field=form.is_featured %}
       </div></div>
-      <div class="d-flex gap-2">
-        <button class="btn btn-primary px-4 flex-grow-1" style="height:48px">บันทึก</button>
-        <a href="{% url 'dashboard:products' %}" class="btn btn-outline-primary px-4 d-flex align-items-center">ยกเลิก</a>
+      <div class="d-grid gap-2">
+        <button class="btn btn-primary" style="height:48px">บันทึก</button>
+        <button class="btn btn-outline-primary" name="_continue" value="1">บันทึกและแก้ไขต่อ</button>
+        <a href="{% url 'dashboard:products' %}" class="btn btn-link">ยกเลิก</a>
       </div>
+      {% if product %}<a class="d-block text-center mt-2 cell-sub" href="{{ product.get_absolute_url }}" target="_blank" rel="noopener">ดูหน้าสินค้าในร้าน</a>{% endif %}
     </div>
   </div>
 </form>
 {% endblock %}
-{% block scripts %}<script>document.getElementById('{{ form.image.id_for_label }}').classList.add('js-image-input');document.getElementById('{{ form.image.id_for_label }}').dataset.preview='imgPreview';</script>{% endblock %}
+{% block scripts %}
+<script>
+/* add a blank variant / image row from the <template> (Django formset __prefix__ pattern) */
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('.js-add-row');
+  if (!btn) return;
+  var prefix = btn.dataset.prefix;
+  var total = document.getElementById('id_' + prefix + '-TOTAL_FORMS');
+  var html = document.querySelector('template[data-empty="' + prefix + '"]').innerHTML.replace(/__prefix__/g, total.value);
+  var host = document.querySelector('[data-rows="' + prefix + '"]');
+  var holder = document.createElement(host.tagName === 'TBODY' ? 'tbody' : 'div');
+  holder.innerHTML = html.trim();
+  while (holder.firstChild) host.appendChild(holder.firstChild);
+  total.value = parseInt(total.value, 10) + 1;
+});
+</script>
+{% endblock %}

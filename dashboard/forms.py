@@ -1,11 +1,11 @@
 import re
-import unicodedata
 
 from django import forms
 from django.contrib.auth import get_user_model, password_validation
 
 from shop.forms import StyledFormMixin
-from shop.models import Carrier, Category, Order, Product
+from shop.text import make_slug, unique_slug  # noqa: F401 (re-exported)
+from shop.models import Brand, Carrier, Category, Order, Product, ProductImage, ProductVariant
 
 User = get_user_model()
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -27,46 +27,86 @@ class CategoryForm(StyledFormMixin, forms.ModelForm):
         return unique_slug(Category, self.cleaned_data.get('slug') or self.data.get('name', ''), self.instance, 'category')
 
 
-def make_slug(text):
-    """URL-safe slug that keeps Thai letters and tone marks (Django's slugify() drops the combining marks)."""
-    text = unicodedata.normalize('NFC', text).strip().lower()
-    text = re.sub(r'[^\w\u0e00-\u0e7f\s-]', '', text)
-    return re.sub(r'[-\s]+', '-', text).strip('-_')
-
-
-def unique_slug(model, source, instance, fallback):
-    base = make_slug(source)[:40].strip('-') or fallback
-    slug, n = base, 2
-    qs = model.objects.exclude(pk=instance.pk)
-    while qs.filter(slug=slug).exists():
-        slug, n = f'{base}-{n}', n + 1
-    return slug
-
-
 class ProductForm(StyledFormMixin, forms.ModelForm):
+    brand_name = forms.CharField(label='แบรนด์', max_length=100, required=False,
+                                 widget=forms.TextInput(attrs={'list': 'brand-options', 'autocomplete': 'off'}),
+                                 help_text='พิมพ์ชื่อแบรนด์ ถ้ายังไม่มีระบบจะสร้างให้')
+    expiry_date = forms.DateField(label='วันหมดอายุ (เดือน/ปี)', required=False, input_formats=['%Y-%m', '%Y-%m-%d'],
+                                  widget=forms.DateInput(attrs={'type': 'month'}, format='%Y-%m'))
+
     class Meta:
         model = Product
-        fields = ['name', 'category', 'brand', 'size', 'description', 'price', 'compare_price', 'stock',
-                  'image', 'is_active', 'is_new', 'is_best_seller', 'slug']
+        fields = ['name', 'category', 'description', 'set_contents', 'how_to_use', 'origin', 'expiry_date',
+                  'is_active', 'is_new', 'is_best_seller', 'is_featured', 'slug']
         widgets = {'description': forms.Textarea(attrs={'rows': 6}),
-                   'image': forms.FileInput(attrs={'accept': 'image/*'})}
+                   'set_contents': forms.Textarea(attrs={'rows': 4}),
+                   'how_to_use': forms.Textarea(attrs={'rows': 4})}
         labels = {'slug': 'ชื่อใน URL'}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if self.instance.pk and self.instance.brand_id:
+            self.initial.setdefault('brand_name', self.instance.brand.name)
         self.fields['slug'].required = False
         self.fields['slug'].help_text = 'เว้นว่างเพื่อให้ระบบสร้างจากชื่อสินค้าให้อัตโนมัติ'
+        self.fields['category'].empty_label = 'เลือกหมวดหมู่'
+        self._style()
+
+    def clean_slug(self):
+        return unique_slug(Product, self.cleaned_data.get('slug') or self.data.get('name', ''), self.instance, 'product')
+
+    def save(self, commit=True):
+        name = self.cleaned_data.get('brand_name', '').strip()
+        if name:
+            brand = Brand.objects.filter(name__iexact=name).first()
+            if brand is None:
+                brand = Brand.objects.create(name=name, slug=unique_slug(Brand, name, None, 'brand'))
+            self.instance.brand = brand
+        else:
+            self.instance.brand = None
+        return super().save(commit)
+
+
+class VariantForm(StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = ProductVariant
+        fields = ['color', 'size', 'sku', 'price', 'compare_price', 'stock', 'ready_to_ship', 'is_active', 'sort_order']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.fields['price'].widget.attrs.update(min='0', step='0.01')
         self.fields['compare_price'].widget.attrs.update(min='0', step='0.01')
         self.fields['stock'].widget.attrs.update(min='0')
-        self.fields['category'].empty_label = 'เลือกหมวดหมู่'
+        self.fields['sort_order'].widget.attrs.update(min='0')
+        self.fields['sku'].widget.attrs.update(placeholder='อัตโนมัติ')
         self._style()
 
     def clean_price(self):
         price = self.cleaned_data['price']
-        if price <= 0:
+        if price is not None and price <= 0:
             raise forms.ValidationError('ราคาต้องมากกว่า 0')
         return price
+
+    def clean(self):
+        data = super().clean()
+        price, compare = data.get('price'), data.get('compare_price')
+        if price and compare and compare <= price:
+            self.add_error('compare_price', 'ราคาปกติต้องมากกว่าราคาขาย (หรือเว้นว่างถ้าไม่ลดราคา)')
+        data['color'] = (data.get('color') or '').strip()
+        data['size'] = (data.get('size') or '').strip()
+        return data
+
+
+class ImageForm(StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = ProductImage
+        fields = ['image', 'color', 'sort_order']
+        widgets = {'image': forms.FileInput(attrs={'accept': 'image/jpeg,image/png,image/webp'})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['sort_order'].widget.attrs.update(min='0')
+        self._style()
 
     def clean_image(self):
         img = self.cleaned_data.get('image')
@@ -74,15 +114,24 @@ class ProductForm(StyledFormMixin, forms.ModelForm):
             raise forms.ValidationError('ไฟล์รูปต้องไม่เกิน 5 MB')
         return img
 
-    def clean_slug(self):
-        return unique_slug(Product, self.cleaned_data.get('slug') or self.data.get('name', ''), self.instance, 'product')
 
+class BaseVariantFormSet(forms.BaseInlineFormSet):
     def clean(self):
-        data = super().clean()
-        price, compare = data.get('price'), data.get('compare_price')
-        if price and compare and compare <= price:
-            self.add_error('compare_price', 'ราคาปกติต้องมากกว่าราคาขาย (หรือเว้นว่างถ้าไม่ลดราคา)')
-        return data
+        super().clean()
+        alive = [f for f in self.forms if f.cleaned_data and not f.cleaned_data.get('DELETE')]
+        if not alive:
+            raise forms.ValidationError('ต้องมีตัวเลือกสินค้าอย่างน้อย 1 รายการ (สินค้าที่ไม่มีสี/ไซซ์ให้เว้นสองช่องนั้นว่าง)')
+        seen = set()
+        for f in alive:
+            key = (f.cleaned_data.get('color', ''), f.cleaned_data.get('size', ''))
+            if key in seen:
+                f.add_error('size', 'สีและไซซ์นี้ซ้ำกับแถวอื่น')
+            seen.add(key)
+
+
+VariantFormSet = forms.inlineformset_factory(Product, ProductVariant, form=VariantForm, formset=BaseVariantFormSet,
+                                             extra=1, can_delete=True)
+ImageFormSet = forms.inlineformset_factory(Product, ProductImage, form=ImageForm, extra=2, can_delete=True)
 
 
 ROLE_CHOICES = [('customer', 'ลูกค้า'), ('staff', 'ผู้ดูแลร้าน'), ('superuser', 'ผู้ดูแลสูงสุด (จัดการผู้ใช้ได้)')]

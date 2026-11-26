@@ -8,10 +8,24 @@
       <h1 class="section-title">{{ title }}</h1>
       <div class="text-muted-2">{{ page.paginator.count }} รายการ</div>
     </div>
-    <form method="get" class="d-flex align-items-center gap-2">
+    <form method="get" class="d-flex flex-wrap align-items-center gap-2">
       {% if category %}<input type="hidden" name="category" value="{{ category.slug }}">{% endif %}
       {% if filter %}<input type="hidden" name="filter" value="{{ filter }}">{% endif %}
       {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+      {% if brands|length > 1 %}
+      <label for="brand" class="visually-hidden">แบรนด์</label>
+      <select id="brand" name="brand" class="form-select" onchange="this.form.submit()">
+        <option value="">ทุกแบรนด์</option>
+        {% for b in brands %}<option value="{{ b.slug }}"{% if brand and brand.pk == b.pk %} selected{% endif %}>{{ b.name }}</option>{% endfor %}
+      </select>
+      {% elif brand %}<input type="hidden" name="brand" value="{{ brand.slug }}">{% endif %}
+      {% if sizes %}
+      <label for="size" class="visually-hidden">ไซซ์</label>
+      <select id="size" name="size" class="form-select" onchange="this.form.submit()">
+        <option value="">ทุกไซซ์</option>
+        {% for s in sizes %}<option value="{{ s }}"{% if s == size %} selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+      {% endif %}
       <label for="sort" class="text-muted-2 text-nowrap">เรียงตาม</label>
       <select id="sort" name="sort" class="form-select" onchange="this.form.submit()">
         {% for key, label in sorts %}<option value="{{ key }}"{% if key == sort %} selected{% endif %}>{{ label }}</option>{% endfor %}

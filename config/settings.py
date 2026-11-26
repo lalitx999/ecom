@@ -150,8 +150,10 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Payment slips are private: never served from MEDIA_URL, only through an authenticated view.
 PRIVATE_MEDIA_ROOT = BASE_DIR / 'private_media'
 
-SITE_NAME = 'Lumé'
-CART_SESSION_KEY = 'cart'
+SITE_NAME = os.environ.get('SITE_NAME', 'NS SELECT')
+SITE_TAGLINE = os.environ.get('SITE_TAGLINE', 'PREMIUM BEAUTY & COSMETICS')
+SITE_SLOGAN = os.environ.get('SITE_SLOGAN', 'Selected Beauty, Exceptional Quality')
+CART_SESSION_KEY = 'cart_v2'  # v2 = keyed by variant id (old product-id carts are ignored)
 CART_MAX_QTY = 99
 SHIPPING_FEE = 50
 FREE_SHIPPING_THRESHOLD = 500

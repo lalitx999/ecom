@@ -1,0 +1,13 @@
+{% load static %}
+<div class="col-6 col-md-4">
+  <div class="image-tile">
+    {% for h in f.hidden_fields %}{{ h }}{% endfor %}
+    <img class="img-preview mb-2" src="{% if f.instance.pk %}{{ f.instance.image.url }}{% else %}{% static 'img/placeholder.svg' %}{% endif %}" alt="">
+    {{ f.image }}{% for e in f.image.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+    <div class="d-flex gap-2 mt-2">
+      <div class="flex-grow-1"><label class="form-label small mb-0" for="{{ f.color.id_for_label }}">ใช้กับสี</label>{{ f.color }}</div>
+      <div style="width:80px"><label class="form-label small mb-0" for="{{ f.sort_order.id_for_label }}">ลำดับ</label>{{ f.sort_order }}</div>
+    </div>
+    {% if f.instance.pk %}<div class="form-check mt-2"><input type="checkbox" class="form-check-input" name="{{ f.prefix }}-DELETE" id="id_{{ f.prefix }}-DELETE"{% if f.DELETE.value %} checked{% endif %}><label class="form-check-label small" for="id_{{ f.prefix }}-DELETE">ลบรูปนี้</label></div>{% endif %}
+  </div>
+</div>

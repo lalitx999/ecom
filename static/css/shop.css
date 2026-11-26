@@ -243,3 +243,21 @@ body.has-buy-bar { padding-bottom: 96px; }
 .ship-note { background: var(--brand-soft); color: var(--brand); border-radius: .75rem; padding: .6rem .9rem; font-weight: 600; font-size: .9rem; }
 
 .panel-lite { border: 1px solid var(--line); border-radius: 1rem; padding: 1rem 1.1rem; }
+
+/* ---- product options (colour / size) and gallery ---- */
+.option-label { color: var(--muted); margin-bottom: .4rem; }
+.option-row { display: flex; flex-wrap: wrap; gap: .5rem; }
+.option-btn { min-width: 3.25rem; padding: .45rem .9rem; border: 1.5px solid #d9d9e3; border-radius: .6rem; background: #fff; font-weight: 600; color: var(--ink, #1b1b2f); }
+.option-btn:hover { border-color: var(--brand); }
+.option-btn.active { border-color: var(--brand); background: var(--brand); color: #fff; }
+.option-btn.sold-out { color: #b3b3c2; text-decoration: line-through; border-style: dashed; }
+.option-btn.sold-out.active { background: #ececf3; color: #8c8ca0; border-color: #b3b3c2; }
+.thumb-strip { display: flex; gap: .5rem; overflow-x: auto; }
+.thumb-btn { flex: none; width: 72px; height: 72px; padding: 0; border: 2px solid transparent; border-radius: .6rem; background: var(--surface); overflow: hidden; }
+.thumb-btn.active { border-color: var(--brand); }
+.thumb-btn img { width: 100%; height: 100%; object-fit: contain; }
+.rich-list { padding-left: 1.2rem; line-height: 1.7; margin-bottom: 0; }
+.spec-list { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; color: var(--muted); }
+.spec-list dt { font-weight: 600; }
+.spec-list dd { margin: 0; color: inherit; }
+.hero-slide h2 { overflow-wrap: anywhere; }

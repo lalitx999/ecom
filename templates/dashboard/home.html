@@ -14,7 +14,7 @@
 <div class="row g-3 mb-4">
   <div class="col-12 col-md-4"><a class="stat" href="{% url 'dashboard:orders' %}?status=processing"><div class="label">{% icon 'package' 18 %} รอจัดส่ง</div><div class="value">{{ to_process }}</div><div class="sub">กำลังเตรียมสินค้า</div></a></div>
   <div class="col-12 col-md-4"><a class="stat" href="{% url 'dashboard:orders' %}?status=pending_payment"><div class="label">{% icon 'file-text' 18 %} รอชำระเงิน</div><div class="value">{{ pending_payment }}</div><div class="sub">{% if slips_waiting %}แนบสลิปแล้ว {{ slips_waiting }} รายการ รอตรวจสอบ{% else %}ยังไม่มีสลิปรอตรวจ{% endif %}</div></a></div>
-  <div class="col-12 col-md-4"><a class="stat {% if low_stock_count %}alert-stat{% endif %}" href="{% url 'dashboard:products' %}?state=low"><div class="label">{% icon 'alert' 18 %} สินค้าใกล้หมด</div><div class="value">{{ low_stock_count }}</div><div class="sub">เหลือ {{ LOW_STOCK }} ชิ้นหรือน้อยกว่า</div></a></div>
+  <div class="col-12 col-md-4"><a class="stat {% if low_stock_count %}alert-stat{% endif %}" href="{% url 'dashboard:products' %}?state=low"><div class="label">{% icon 'alert' 18 %} สินค้าใกล้หมด</div><div class="value">{{ low_stock_count }}</div><div class="sub">ตัวเลือกที่เหลือ {{ LOW_STOCK }} ชิ้นหรือน้อยกว่า</div></a></div>
 </div>
 
 <div class="panel mb-4">
@@ -54,7 +54,8 @@
       <div class="panel-head"><h2>สต็อกใกล้หมด</h2><a href="{% url 'dashboard:products' %}?state=low" class="see-all">ทั้งหมด {% icon 'chevron-right' 16 %}</a></div>
       <div class="table-responsive"><table class="table">
         <tbody>
-          {% for p in low_stock %}<tr><td><a class="cell-name" href="{% url 'dashboard:product_edit' p.pk %}">{{ p.name }}</a></td><td class="num">{% if p.stock == 0 %}<span class="tag red">หมด</span>{% else %}<span class="tag yellow">เหลือ {{ p.stock }}</span>{% endif %}</td></tr>
+          {% for v in low_stock %}<tr><td><a class="cell-name" href="{% url 'dashboard:product_edit' v.product_id %}">{{ v.product.name }}</a>{% if v.label %}<div class="cell-sub">{{ v.label }}</div>{% endif %}</td>
+            <td class="num"><input type="number" min="0" class="form-control stock-input js-stock{% if v.stock <= LOW_STOCK %} low{% endif %}" value="{{ v.stock }}" data-url="{% url 'dashboard:variant_quick' v.pk %}" data-low="{{ LOW_STOCK }}" aria-label="สต็อก {{ v }}"></td></tr>
           {% empty %}<tr><td class="empty-row">สต็อกทุกรายการเพียงพอ</td></tr>{% endfor %}
         </tbody></table></div>
     </div>

@@ -1,0 +1,12 @@
+<tr>
+  <td>{% for h in f.hidden_fields %}{{ h }}{% endfor %}{{ f.color }}{% for e in f.color.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}</td>
+  <td>{{ f.size }}{% for e in f.size.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}</td>
+  <td style="min-width:110px">{{ f.price }}{% for e in f.price.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}</td>
+  <td style="min-width:110px">{{ f.compare_price }}{% for e in f.compare_price.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}</td>
+  <td style="min-width:80px">{{ f.stock }}{% for e in f.stock.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}</td>
+  <td style="min-width:120px">{{ f.sku }}{% for e in f.sku.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}</td>
+  <td class="text-center">{{ f.ready_to_ship }}</td>
+  <td class="text-center">{{ f.is_active }}</td>
+  <td style="min-width:70px">{{ f.sort_order }}</td>
+  <td class="text-center">{% if f.instance.pk %}<input type="checkbox" class="form-check-input" name="{{ f.prefix }}-DELETE" id="id_{{ f.prefix }}-DELETE" aria-label="ลบตัวเลือกนี้"{% if f.DELETE.value %} checked{% endif %}>{% endif %}</td>
+</tr>

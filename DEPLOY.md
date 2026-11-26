@@ -15,6 +15,6 @@
 5. **Services:** install `deploy/shop.service.example` and `deploy/nginx.conf.example`, run certbot, `systemctl enable --now shop`
 6. **Email:** fill `EMAIL_*` (a transactional provider such as SES, Brevo or Mailgun, or Gmail with an app password). Send yourself a test order and check the seller and customer emails arrive.
 7. **Check:** `DJANGO_DEBUG=0 .venv/bin/python manage.py check --deploy`; once HTTPS works everywhere set `SECURE_HSTS_SECONDS=31536000`
-8. **Before launch:** change the admin password, remove demo data (`manage.py seed_demo_orders --purge`), put the real bank account in `PAYMENT_TRANSFER_INFO` (config/settings.py), replace sample products
+8. **Before launch:** change the admin password, run `manage.py import_ns_select` (or add products in /manage/) and set real stock per variant, put the real bank account in `PAYMENT_TRANSFER_INFO` (config/settings.py)
 9. **Backups:** nightly `pg_dump ecommerce_db` and a copy of `media/` and `private_media/` to another machine
 10. **Known limits:** emails are sent inside the web request (fine for a small shop; move to a queue such as Celery if volume grows); there is no login rate limiting yet (put `limit_req` in nginx for `/login/`)

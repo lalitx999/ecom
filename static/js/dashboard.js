@@ -48,6 +48,11 @@
       else { active.checked = !active.checked; toast(json.message, true); }
       return;
     }
+    const tileInput = e.target.closest('.image-tile input[type="file"]');
+    if (tileInput && tileInput.files[0]) {
+      tileInput.closest('.image-tile').querySelector('.img-preview').src = URL.createObjectURL(tileInput.files[0]);
+      return;
+    }
     const file = e.target.closest('.js-image-input');
     if (file && file.files[0]) {
       const img = document.getElementById(file.dataset.preview);

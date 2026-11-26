@@ -63,7 +63,7 @@
   // ---- add to cart (product cards and detail page) ----
   document.addEventListener('click', async (e) => {
     const btn = e.target.closest('.js-add-to-cart');
-    if (!btn || btn.disabled) return;
+    if (!btn || btn.disabled || !btn.dataset.variantId) return;
     let qty = parseInt(btn.dataset.qty || '1', 10);
     if (btn.dataset.qtyInput) {
       const input = $(btn.dataset.qtyInput);
@@ -72,7 +72,7 @@
     const original = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<span class="spin"></span>';
-    const json = await post(URLS.add, { product_id: btn.dataset.productId, qty });
+    const json = await post(URLS.add, { variant_id: btn.dataset.variantId, qty });
     btn.disabled = false;
     btn.innerHTML = original;
     applyCart(json);
@@ -80,8 +80,8 @@
   });
 
   // ---- cart line controls (drawer and cart page) ----
-  async function updateLine(productId, qty) {
-    const json = await post(URLS.update, { product_id: productId, qty });
+  async function updateLine(variantId, qty) {
+    const json = await post(URLS.update, { variant_id: variantId, qty });
     applyCart(json);
     if (!json.ok || /สูงสุด/.test(json.message)) showToast(json.message, { error: !json.ok });
   }
@@ -93,13 +93,13 @@
       const input = $('.js-cart-qty', wrap);
       const next = (parseInt(input.value, 10) || 1) + parseInt(step.dataset.delta, 10);
       $$('button', wrap).forEach((b) => (b.disabled = true));
-      await updateLine(wrap.dataset.productId, Math.max(1, next));
+      await updateLine(wrap.dataset.variantId, Math.max(1, next));
       return;
     }
     const rm = e.target.closest('.js-cart-remove');
     if (rm) {
       rm.disabled = true;
-      const json = await post(URLS.remove, { product_id: rm.dataset.productId });
+      const json = await post(URLS.remove, { variant_id: rm.dataset.variantId });
       applyCart(json);
       showToast(json.message, { error: !json.ok });
     }
@@ -109,7 +109,7 @@
     const input = e.target.closest('.js-cart-qty');
     if (!input) return;
     const wrap = input.closest('.stepper');
-    await updateLine(wrap.dataset.productId, Math.max(1, parseInt(input.value, 10) || 1));
+    await updateLine(wrap.dataset.variantId, Math.max(1, parseInt(input.value, 10) || 1));
   });
 
   // ---- quantity stepper on the product page (no request, just the field) ----

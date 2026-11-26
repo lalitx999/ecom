@@ -4,58 +4,46 @@
 {% block content %}
 <div class="container pt-3">
 
-  <!-- Hero -->
+  {% if featured %}
+  <!-- Hero: products marked "แสดงในแบนเนอร์หน้าแรก" in the back office -->
   <div id="heroCarousel" class="carousel slide hero" data-bs-ride="carousel">
+    {% if featured|length > 1 %}
     <div class="carousel-indicators">
-      <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="สไลด์ 1"></button>
-      <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="1" aria-label="สไลด์ 2"></button>
-      <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="2" aria-label="สไลด์ 3"></button>
+      {% for p in featured %}<button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="{{ forloop.counter0 }}"{% if forloop.first %} class="active" aria-current="true"{% endif %} aria-label="สไลด์ {{ forloop.counter }}"></button>{% endfor %}
     </div>
+    {% endif %}
     <div class="carousel-inner">
-      <div class="carousel-item active">
-        <div class="hero-slide hero-soft">
-          <div class="flex-grow-1">
-            <span class="hero-tag">Online Exclusive</span>
-            <h2 class="mt-3 mb-3">เปล่งประกาย<br>ผิวอ่อนเยาว์</h2>
-            <a href="{% url 'shop:product_list' %}?category=face-care" class="btn btn-primary px-4">ช้อปเลย</a>
+      {% for p in featured %}
+      <div class="carousel-item{% if forloop.first %} active{% endif %}">
+        <div class="hero-slide {% cycle 'hero-soft' 'hero-navy' 'hero-yellow' %}">
+          <div class="flex-grow-1" style="min-width:0">
+            <span class="hero-tag">{% if p.brand %}{{ p.brand.name }}{% else %}{{ p.category.name }}{% endif %}</span>
+            <h2 class="mt-3 mb-2">{{ p.name }}</h2>
+            {% if p.min_price is not None %}<p class="mb-3">{% if p.has_price_range %}เริ่มต้น {% endif %}{{ p.min_price|baht }} บาท{% if p.on_sale %} · ลด {{ p.discount_percent }}%{% endif %}</p>{% endif %}
+            <a href="{{ p.get_absolute_url }}" class="btn {% cycle 'btn-primary' 'btn-white' 'btn-primary' %} px-4">ดูสินค้า</a>
           </div>
-          <img class="hero-art" src="{% static 'img/placeholder.svg' %}" alt="">
+          <img class="hero-art" src="{{ p.image_url }}" alt="">
         </div>
       </div>
-      <div class="carousel-item">
-        <div class="hero-slide hero-navy">
-          <div class="flex-grow-1">
-            <span class="hero-tag">โปรโมชั่น</span>
-            <h2 class="mt-3 mb-3">ลดสูงสุด 40%<br>ทุกหมวดหมู่</h2>
-            <a href="{% url 'shop:product_list' %}?filter=sale" class="btn btn-white px-4">ดูสินค้าลดราคา</a>
-          </div>
-        </div>
-      </div>
-      <div class="carousel-item">
-        <div class="hero-slide hero-yellow">
-          <div class="flex-grow-1">
-            <span class="hero-tag">มาใหม่</span>
-            <h2 class="mt-3 mb-3">สินค้าใหม่<br>พร้อมส่งแล้ววันนี้</h2>
-            <a href="{% url 'shop:product_list' %}?filter=new" class="btn btn-primary px-4">ดูสินค้าใหม่</a>
-          </div>
-        </div>
-      </div>
+      {% endfor %}
     </div>
   </div>
+  {% endif %}
 
-  <!-- Quick tiles -->
-  <div class="row row-cols-4 g-2 text-center mt-4">
-    <div class="col"><a class="quick-tile" href="{% url 'shop:product_list' %}?filter=sale"><span class="disc disc-red">{% icon 'percent' 40 %}</span>ลดสูงสุด 40%</a></div>
-    <div class="col"><a class="quick-tile" href="{% url 'shop:product_list' %}?filter=best"><span class="disc disc-soft">{% icon 'star' 40 %}</span>สินค้าขายดี</a></div>
-    <div class="col"><a class="quick-tile" href="{% url 'shop:product_list' %}?filter=new"><span class="disc disc-yellow">{% icon 'tag' 40 %}</span>สินค้าใหม่</a></div>
+  {% if nav_categories %}
+  <!-- Category tiles (from the database) -->
+  <div class="row row-cols-2 row-cols-sm-4 g-2 text-center mt-4">
+    {% for c in nav_categories %}
+    <div class="col"><a class="quick-tile" href="{% url 'shop:product_list' %}?category={{ c.slug }}"><span class="disc {% cycle 'disc-soft' 'disc-navy' 'disc-yellow' 'disc-red' %}">{% icon 'tag' 40 %}</span>{{ c.name }}</a></div>
+    {% endfor %}
     <div class="col"><a class="quick-tile" href="{% url 'shop:product_list' %}"><span class="disc disc-navy">{% icon 'package' 40 %}</span>สินค้าทั้งหมด</a></div>
   </div>
+  {% endif %}
 
-  <!-- Sale -->
   {% if sale_products %}
   <section class="sale-panel mt-5">
     <div class="d-flex align-items-center justify-content-between mb-3">
-      <h2 class="section-title">ลดราคาพิเศษ</h2>
+      <h2 class="section-title">ลดราคาพิเศษ{% if max_discount %} สูงสุด {{ max_discount }}%{% endif %}</h2>
       <a class="see-all" href="{% url 'shop:product_list' %}?filter=sale">ดูทั้งหมด {% icon 'chevron-right' 18 %}</a>
     </div>
     <div class="sale-scroller"><div class="h-scroll">
@@ -83,5 +71,22 @@
     <div class="h-scroll">{% for product in new_products %}<div>{% include 'shop/_product_card.html' %}</div>{% endfor %}</div>
   </section>
   {% endif %}
+
+  {% for category, items in category_sections %}
+  <section class="mt-5">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h2 class="section-title">{{ category.name }}</h2>
+      <a class="see-all" href="{% url 'shop:product_list' %}?category={{ category.slug }}">ดูทั้งหมด {% icon 'chevron-right' 18 %}</a>
+    </div>
+    <div class="h-scroll">{% for product in items %}<div>{% include 'shop/_product_card.html' %}</div>{% endfor %}</div>
+  </section>
+  {% empty %}
+  <div class="empty-state mt-5">
+    <div class="disc">{% icon 'package' 44 %}</div>
+    <h5 class="fw-bold">ยังไม่มีสินค้าในร้าน</h5>
+    <p class="text-muted-2">สินค้าจะแสดงที่นี่เมื่อเพิ่มสินค้าในระบบหลังบ้าน</p>
+    {% if user.is_staff %}<a href="{% url 'dashboard:product_new' %}" class="btn btn-primary px-4">เพิ่มสินค้า</a>{% endif %}
+  </div>
+  {% endfor %}
 </div>
 {% endblock %}

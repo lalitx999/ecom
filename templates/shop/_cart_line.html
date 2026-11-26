@@ -1,21 +1,21 @@
 {% load shop_extras %}
-<div class="cart-line" data-line="{{ line.product.pk }}">
-  <a href="{{ line.product.get_absolute_url }}"><img src="{{ line.product.image_url }}" alt=""></a>
+<div class="cart-line" data-line="{{ line.variant.pk }}">
+  <a href="{{ line.product.get_absolute_url }}"><img src="{{ line.variant.image_url }}" alt=""></a>
   <div class="flex-grow-1" style="min-width:0">
     <div class="d-flex justify-content-between gap-2">
       <a href="{{ line.product.get_absolute_url }}" class="name">{{ line.product.name }}</a>
-      <button type="button" class="cart-remove js-cart-remove" data-product-id="{{ line.product.pk }}" aria-label="นำออกจากตะกร้า">{% icon 'trash' 20 %}</button>
+      <button type="button" class="cart-remove js-cart-remove" data-variant-id="{{ line.variant.pk }}" aria-label="นำออกจากตะกร้า">{% icon 'trash' 20 %}</button>
     </div>
-    {% if line.product.size %}<div class="product-size">{{ line.product.size }}</div>{% endif %}
+    {% if line.variant.label %}<div class="product-size">{{ line.variant.label }}</div>{% endif %}
     <div class="d-flex align-items-center justify-content-between mt-2">
-      <div class="stepper sm" data-product-id="{{ line.product.pk }}">
+      <div class="stepper sm" data-variant-id="{{ line.variant.pk }}">
         <button type="button" class="js-cart-step" data-delta="-1" aria-label="ลดจำนวน" {% if line.qty <= 1 %}disabled{% endif %}>{% icon 'minus' 16 %}</button>
-        <input type="number" class="js-cart-qty" value="{{ line.qty }}" min="1" max="{{ line.product.stock }}" inputmode="numeric" aria-label="จำนวน">
-        <button type="button" class="js-cart-step" data-delta="1" aria-label="เพิ่มจำนวน" {% if line.qty >= line.product.stock or line.qty >= 99 %}disabled{% endif %}>{% icon 'plus' 16 %}</button>
+        <input type="number" class="js-cart-qty" value="{{ line.qty }}" min="1" max="{{ line.max_qty }}" inputmode="numeric" aria-label="จำนวน">
+        <button type="button" class="js-cart-step" data-delta="1" aria-label="เพิ่มจำนวน" {% if line.qty >= line.max_qty %}disabled{% endif %}>{% icon 'plus' 16 %}</button>
       </div>
       <div class="text-end">
         <div class="price">{{ line.total|baht }} บาท</div>
-        {% if line.product.on_sale %}<div class="price-old ms-0">{{ line.product.compare_price|baht }} / ชิ้น</div>{% endif %}
+        {% if line.variant.on_sale %}<div class="price-old ms-0">{{ line.variant.compare_price|baht }} / ชิ้น</div>{% endif %}
       </div>
     </div>
     {% if line.limited %}<div class="small text-accent mt-1">ปรับจำนวนตามสต็อกที่มีอยู่</div>{% endif %}

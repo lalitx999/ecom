@@ -15,7 +15,7 @@
         <thead><tr><th>สินค้า</th><th class="num">ราคา</th><th class="num">จำนวน</th><th class="num">รวม</th></tr></thead>
         <tbody>
           {% for i in order.items.all %}
-          <tr><td><div class="d-flex align-items-center gap-3"><img class="thumb-sm" src="{{ i.image_url }}" alt=""><div><div class="cell-name">{{ i.name }}</div><div class="cell-sub">{{ i.size }}</div></div></div></td>
+          <tr><td><div class="d-flex align-items-center gap-3"><img class="thumb-sm" src="{{ i.image_url }}" alt=""><div><div class="cell-name">{{ i.name }}</div><div class="cell-sub">{{ i.variant_label }}{% if i.sku %} · {{ i.sku }}{% endif %}</div></div></div></td>
             <td class="num">{{ i.unit_price|baht }}</td><td class="num">{{ i.qty }}</td><td class="num fw-bold">{{ i.line_total|baht }}</td></tr>
           {% endfor %}
         </tbody>

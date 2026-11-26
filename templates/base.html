@@ -16,16 +16,14 @@
     <div class="d-flex align-items-center justify-content-between gap-3">
       <a href="{% url 'shop:home' %}" class="d-flex align-items-center gap-3 text-decoration-none">
         <span class="brand-logo">{{ SITE_NAME }}</span>
-        <span class="brand-greet d-none d-sm-block">ยินดีต้อนรับสู่{{ SITE_NAME }}<br>เลือกสินค้าที่คุณชอบได้เลย</span>
+        <span class="brand-greet d-none d-sm-block">{{ SITE_TAGLINE }}<br>{{ SITE_SLOGAN }}</span>
       </a>
       <div class="d-flex align-items-center gap-1">
         <a href="{% if user.is_authenticated %}{% url 'shop:orders' %}{% else %}{% url 'shop:login' %}{% endif %}" class="header-action" aria-label="{% if user.is_authenticated %}คำสั่งซื้อของฉัน{% else %}เข้าสู่ระบบ{% endif %}">{% icon 'user' 28 %}<span class="label">{% if user.is_authenticated %}บัญชี{% else %}เข้าสู่ระบบ{% endif %}</span></a>
-        <button type="button" class="header-action" aria-label="การแจ้งเตือน">{% icon 'bell' 28 %}</button>
         <button type="button" class="header-action js-open-cart" data-bs-toggle="offcanvas" data-bs-target="#cartDrawer" aria-label="ตะกร้าสินค้า">
           {% icon 'cart' 28 %}
           <span class="cart-badge" data-cart-count data-count="{{ cart|length }}">{{ cart|length }}</span>
         </button>
-        <button type="button" class="header-action" aria-label="ภาษา">{% icon 'globe' 28 %}<span class="label">TH</span></button>
       </div>
     </div>
 
@@ -60,7 +58,7 @@
     <div class="row g-4 g-lg-5">
       <div class="col-12 col-lg-4">
         <a href="{% url 'shop:home' %}" class="brand-logo footer-logo">{{ SITE_NAME }}</a>
-        {% if CONTACT.tagline %}<p class="footer-tagline">{{ CONTACT.tagline }}</p>{% endif %}
+        <p class="footer-tagline">{{ CONTACT.tagline|default:SITE_SLOGAN }}</p>
         <ul class="footer-contact">
           {% if CONTACT.phone %}<li>{% icon 'phone' 18 %}<a href="tel:{{ CONTACT.phone|cut:' '|cut:'-' }}">{{ CONTACT.phone }}</a></li>{% endif %}
           {% if CONTACT.email %}<li>{% icon 'mail' 18 %}<a href="mailto:{{ CONTACT.email }}">{{ CONTACT.email }}</a></li>{% endif %}
