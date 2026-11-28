@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model, password_validation
 
 from shop.forms import StyledFormMixin
 from shop.text import make_slug, unique_slug  # noqa: F401 (re-exported)
-from shop.models import Brand, Carrier, Category, Order, Product, ProductImage, ProductVariant
+from shop.models import Brand, Carrier, Category, Order, Page, Product, ProductImage, ProductVariant, ShopSettings
 
 User = get_user_model()
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -132,6 +132,83 @@ class BaseVariantFormSet(forms.BaseInlineFormSet):
 VariantFormSet = forms.inlineformset_factory(Product, ProductVariant, form=VariantForm, formset=BaseVariantFormSet,
                                              extra=1, can_delete=True)
 ImageFormSet = forms.inlineformset_factory(Product, ProductImage, form=ImageForm, extra=2, can_delete=True)
+
+
+class ShopSettingsForm(StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = ShopSettings
+        exclude = ['updated_at']
+        widgets = {'address': forms.Textarea(attrs={'rows': 3}),
+                   'logo': forms.FileInput(attrs={'accept': 'image/png,image/jpeg,image/webp'}),
+                   'favicon': forms.FileInput(attrs={'accept': 'image/png,image/jpeg'})}
+
+    remove_logo = forms.BooleanField(label='ลบโลโก้ (กลับไปใช้ชื่อร้านเป็นตัวอักษร)', required=False)
+    remove_favicon = forms.BooleanField(label='ลบไอคอนแท็บ', required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in ('shipping_fee', 'free_shipping_threshold'):
+            self.fields[name].widget.attrs.update(min='0', step='1')
+        self.fields['promptpay_id'].widget.attrs.update(inputmode='numeric')
+        self._style()
+
+    def _image(self, name):
+        img = self.cleaned_data.get(name)
+        if img and hasattr(img, 'size') and img.size > MAX_IMAGE_BYTES:
+            raise forms.ValidationError('ไฟล์รูปต้องไม่เกิน 5 MB')
+        return img
+
+    def clean_logo(self):
+        return self._image('logo')
+
+    def clean_favicon(self):
+        return self._image('favicon')
+
+    def clean_promptpay_id(self):
+        value = re.sub(r'[\s-]', '', self.cleaned_data['promptpay_id'])
+        if value and not re.fullmatch(r'0\d{9}|\d{13}|\d{15}', value):
+            raise forms.ValidationError('ใส่เบอร์มือถือ 10 หลัก เลขประจำตัวประชาชน/ผู้เสียภาษี 13 หลัก หรือ e-Wallet 15 หลัก')
+        return value
+
+    def clean_bank_account_number(self):
+        return self.cleaned_data['bank_account_number'].strip()
+
+    def clean(self):
+        data = super().clean()
+        bank = [data.get(f) for f in ('bank_name', 'bank_account_number', 'bank_account_name')]
+        if any(bank) and not all(bank):
+            self.add_error('bank_account_name' if not bank[2] else 'bank_account_number' if not bank[1] else 'bank_name',
+                           'กรอกธนาคาร เลขที่บัญชี และชื่อบัญชีให้ครบทั้งสามช่อง')
+        for name in ('shipping_fee', 'free_shipping_threshold'):
+            if data.get(name) is not None and data[name] < 0:
+                self.add_error(name, 'ต้องไม่ติดลบ')
+        return data
+
+    def save(self, commit=True):
+        obj = super().save(commit=False)
+        if self.cleaned_data.get('remove_logo') and not self.files.get('logo'):
+            obj.logo = ''
+        if self.cleaned_data.get('remove_favicon') and not self.files.get('favicon'):
+            obj.favicon = ''
+        if commit:
+            obj.save()
+        return obj
+
+
+class PageForm(StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = Page
+        fields = ['title', 'slug', 'body', 'is_published', 'show_in_footer', 'order']
+        widgets = {'body': forms.Textarea(attrs={'rows': 18})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['slug'].required = False
+        self.fields['slug'].help_text = 'เว้นว่างเพื่อสร้างจากหัวข้อ | หน้า "terms" และ "privacy-policy" จะต้องติ๊กยอมรับตอนสมัครสมาชิกเมื่อเผยแพร่'
+        self._style()
+
+    def clean_slug(self):
+        return unique_slug(Page, self.cleaned_data.get('slug') or self.data.get('title', ''), self.instance, 'page')
 
 
 ROLE_CHOICES = [('customer', 'ลูกค้า'), ('staff', 'ผู้ดูแลร้าน'), ('superuser', 'ผู้ดูแลสูงสุด (จัดการผู้ใช้ได้)')]

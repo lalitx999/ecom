@@ -155,7 +155,7 @@ SITE_TAGLINE = os.environ.get('SITE_TAGLINE', 'PREMIUM BEAUTY & COSMETICS')
 SITE_SLOGAN = os.environ.get('SITE_SLOGAN', 'Selected Beauty, Exceptional Quality')
 CART_SESSION_KEY = 'cart_v2'  # v2 = keyed by variant id (old product-id carts are ignored)
 CART_MAX_QTY = 99
-SHIPPING_FEE = 50
+SHIPPING_FEE = 50              # first-run default only; then edited in /manage/settings/
 FREE_SHIPPING_THRESHOLD = 500
 
 AUTHENTICATION_BACKENDS = ['shop.backends.EmailOrUsernameBackend']
@@ -163,8 +163,7 @@ LOGIN_URL = 'shop:login'
 LOGIN_REDIRECT_URL = 'shop:orders'
 LOGOUT_REDIRECT_URL = 'shop:home'
 
-# Shown on the order page when paying by bank transfer. Replace with the shop's real account.
-PAYMENT_TRANSFER_INFO = 'ธนาคาร: (ใส่ชื่อธนาคาร)  เลขที่บัญชี: (ใส่เลขบัญชี)  ชื่อบัญชี: (ใส่ชื่อบัญชี)'
+# Bank account, PromptPay, contact details and shipping are edited in the back office (/manage/settings/).
 
 
 # ---------------------------------------------------------------- email
@@ -183,7 +182,7 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', f'{SITE_NAME} <no-repl
 SHOP_NOTIFY_EMAILS = env_list('SHOP_NOTIFY_EMAILS')
 PASSWORD_RESET_TIMEOUT = 60 * 60 * 2
 
-# Shop contact details shown in the footer. Set in the environment; an empty value is simply not shown.
+# Initial shop contact details (copied into the back-office settings the first time the site runs).
 def _url_or_empty(value):
     value = (value or '').strip()
     return value if value.startswith(('https://', 'http://')) else ''
@@ -220,12 +219,24 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '0'))  # raise to 31536000 once HTTPS works
     SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0
+    # Preload is a one-way door (hstspreload.org); opt in deliberately. Otherwise silence the reminder.
+    SECURE_HSTS_PRELOAD = env_bool('SECURE_HSTS_PRELOAD', False)
+    if not SECURE_HSTS_PRELOAD:
+        SILENCED_SYSTEM_CHECKS = ['security.W021']
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
     STORAGES = {
         'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
         'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
     }
+
+# Cache: used for login/password-reset rate limits and the shop-settings cache, so it must be shared by every
+# gunicorn worker in production -> file-based by default (no extra service). Development uses local memory.
+CACHE_DIR = os.environ.get('CACHE_DIR', str(BASE_DIR / 'var' / 'cache'))
+CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}} if DEBUG else {
+    'default': {'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache', 'LOCATION': CACHE_DIR}}
+# nginx sets X-Real-IP (deploy/nginx.conf.example); trust it only when Django really sits behind that proxy.
+TRUST_X_REAL_IP = env_bool('TRUST_X_REAL_IP', not DEBUG)
 
 LOGGING = {
     'version': 1,

@@ -3,6 +3,7 @@ import mimetypes
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
+from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 import json
@@ -16,7 +17,7 @@ from django.views.decorators.http import require_POST
 
 from .cart import Cart
 from .forms import CheckoutForm, RegisterForm, SlipForm
-from .models import Brand, Category, Order, Product, ProductVariant
+from .models import Brand, Category, Order, Page, Product, ProductVariant, ShopSettings
 from .services import SlipNotAllowed, StockError, attach_slip, place_order
 
 PAGE_SIZE = 12
@@ -226,12 +227,36 @@ def cart_remove(request):
     return _cart_response(request, cart, 'นำสินค้าออกจากตะกร้าแล้ว')
 
 
+class RateLimitedPasswordResetView(auth_views.PasswordResetView):
+    """Too many requests from one IP -> error; too many for one e-mail -> pretend it was sent (no address probing)."""
+
+    def form_valid(self, form):
+        from .ratelimit import reset_allowed, reset_ip_blocked
+        if reset_ip_blocked(self.request):
+            form.add_error(None, 'ส่งคำขอบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่')
+            return self.form_invalid(form)
+        if not reset_allowed(self.request, form.cleaned_data['email']):
+            return redirect(self.get_success_url())
+        return super().form_valid(form)
+
+
+# ---------------------------------------------------------------- content pages
+POLICY_SLUGS = ('terms', 'privacy-policy')  # must be accepted at sign-up once published
+
+
+def page(request, slug):
+    qs = Page.objects.all() if request.user.is_staff else Page.objects.filter(is_published=True)
+    obj = get_object_or_404(qs, slug=slug)
+    return render(request, 'shop/page.html', {'page': obj})
+
+
 # ---------------------------------------------------------------- accounts
 def register(request):
     if request.user.is_authenticated:
         return redirect('shop:orders')
     nxt = request.POST.get('next') or request.GET.get('next', '')
-    form = RegisterForm(request.POST or None)
+    policies = Page.objects.filter(is_published=True, slug__in=POLICY_SLUGS)
+    form = RegisterForm(request.POST or None, policy_pages=policies)
     if request.method == 'POST' and form.is_valid():
         user = form.save()
         login(request, user)  # session (and the cart in it) is kept
@@ -289,7 +314,7 @@ def order_detail(request, number):
         order.refresh_from_db()
     return render(request, 'shop/order_detail.html', {
         'order': order,
-        'transfer_info': settings.PAYMENT_TRANSFER_INFO,
+        'transfer_lines': ShopSettings.load().transfer_lines,
         'slip_form': slip_form,
     })
 

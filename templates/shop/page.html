@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}{{ page.title }}{% endblock %}
+{% block content %}
+<div class="container py-4 py-lg-5">
+  <article class="page-article mx-auto">
+    {% if not page.is_published %}<div class="flash flash-error">หน้านี้ยังไม่เผยแพร่ ลูกค้ายังมองไม่เห็น (คุณเห็นเพราะเป็นผู้ดูแลร้าน)</div>{% endif %}
+    <h1 class="section-title mb-1">{{ page.title }}</h1>
+    <div class="text-muted-2 mb-4">ปรับปรุงล่าสุด {{ page.updated_at|date:"j F Y" }}</div>
+    {% for kind, text in page.blocks %}
+      {% if kind == 'h' %}<h2 class="h5 fw-bold mt-4 mb-2">{{ text }}</h2>{% else %}<p class="rich-text">{{ text }}</p>{% endif %}
+    {% endfor %}
+  </article>
+</div>
+{% endblock %}

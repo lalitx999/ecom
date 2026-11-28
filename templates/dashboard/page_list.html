@@ -1,0 +1,26 @@
+{% extends 'dashboard/base.html' %}
+{% load shop_extras %}
+{% block title %}หน้าเนื้อหา{% endblock %}
+{% block heading %}หน้าเนื้อหา / นโยบาย{% endblock %}
+{% block content %}
+<div class="panel">
+  <div class="panel-head"><p class="cell-sub mb-0">หน้าที่เผยแพร่และติ๊ก "แสดงใน footer" จะมีลิงก์ท้ายเว็บ | หน้า terms และ privacy-policy ที่เผยแพร่แล้ว ลูกค้าต้องติ๊กยอมรับตอนสมัครสมาชิก</p>
+    <a href="{% url 'dashboard:page_new' %}" class="btn btn-primary">{% icon 'plus' 18 %} เพิ่มหน้า</a></div>
+  <div class="table-responsive"><table class="table table-hover">
+    <thead><tr><th>หัวข้อ</th><th>URL</th><th class="text-center">สถานะ</th><th>แก้ไขล่าสุด</th><th></th></tr></thead>
+    <tbody>
+      {% for p in pages %}
+      <tr>
+        <td><a class="cell-name" href="{% url 'dashboard:page_edit' p.pk %}">{{ p.title }}</a>{% if '[' in p.body %}<div class="cell-sub"><span class="tag yellow">ยังมีช่อง [ ] ที่ต้องกรอก</span></div>{% endif %}</td>
+        <td class="cell-sub"><a href="{{ p.get_absolute_url }}" target="_blank" rel="noopener">{{ p.get_absolute_url }}</a></td>
+        <td class="text-center">{% if p.is_published %}<span class="tag">เผยแพร่</span>{% else %}<span class="tag red">ฉบับร่าง</span>{% endif %}</td>
+        <td class="cell-sub">{{ p.updated_at|date:"j M Y H:i" }}</td>
+        <td class="text-end text-nowrap">
+          <a class="icon-btn" href="{% url 'dashboard:page_edit' p.pk %}" aria-label="แก้ไข" title="แก้ไข">{% icon 'edit' 16 %}</a>
+          <a class="icon-btn danger" href="{% url 'dashboard:page_delete' p.pk %}" aria-label="ลบ" title="ลบ">{% icon 'trash' 16 %}</a>
+        </td>
+      </tr>
+      {% empty %}<tr><td colspan="5" class="empty-row">ยังไม่มีหน้าเนื้อหา</td></tr>{% endfor %}
+    </tbody></table></div>
+</div>
+{% endblock %}

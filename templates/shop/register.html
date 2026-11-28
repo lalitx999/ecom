@@ -7,7 +7,15 @@
     <form method="post" novalidate>
       {% csrf_token %}
       <input type="hidden" name="next" value="{{ next }}">
-      {% for field in form %}{% include 'shop/_field.html' %}{% endfor %}
+      {% for field in form %}{% if field.name != 'accept_terms' %}{% include 'shop/_field.html' %}{% endif %}{% endfor %}
+      {% if form.accept_terms %}
+      <div class="form-check mb-3">
+        {{ form.accept_terms }}
+        <label class="form-check-label" for="{{ form.accept_terms.id_for_label }}">ฉันยอมรับ
+          {% for p in form.policy_pages %}<a href="{{ p.get_absolute_url }}" target="_blank" rel="noopener">{{ p.title }}</a>{% if not forloop.last %} และ {% endif %}{% endfor %}</label>
+        {% for e in form.accept_terms.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+      </div>
+      {% endif %}
       <button class="btn btn-primary w-100 mt-2" style="height:52px">สมัครสมาชิก</button>
     </form>
     <p class="text-center mt-4 mb-0">มีบัญชีอยู่แล้ว? <a class="fw-bold" href="{% url 'shop:login' %}{% if next %}?next={{ next|urlencode }}{% endif %}">เข้าสู่ระบบ</a></p>

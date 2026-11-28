@@ -26,4 +26,9 @@ urlpatterns = [
     path('users/<int:pk>/password/', views.user_password, name='user_password'),
     path('users/<int:pk>/delete/', views.user_delete, name='user_delete'),
     path('reports/', views.report, name='reports'),
+    path('settings/', views.shop_settings, name='settings'),
+    path('pages/', views.page_list, name='pages'),
+    path('pages/new/', views.page_form, name='page_new'),
+    path('pages/<int:pk>/edit/', views.page_form, name='page_edit'),
+    path('pages/<int:pk>/delete/', views.page_delete, name='page_delete'),
 ]

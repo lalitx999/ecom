@@ -11,7 +11,7 @@ from django.utils import timezone
 from PIL import Image
 
 from shop.models import Brand, Category, Order, OrderItem, Product, ProductImage, ProductVariant
-from shop.testing import SlipStorageMixin, image_file, make_variant
+from shop.testing import CleanCacheMixin, SlipStorageMixin, image_file, make_variant
 
 User = get_user_model()
 
@@ -22,7 +22,7 @@ def png(size=(20, 20)):
     return SimpleUploadedFile('p.png', buf.getvalue(), content_type='image/png')
 
 
-class Base(SlipStorageMixin, TestCase):
+class Base(CleanCacheMixin, SlipStorageMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.cat = Category.objects.create(name='หมวด', slug='cat')
@@ -387,3 +387,66 @@ class PaymentAndShippingFlowTests(Base):
         detail = self.client.get(reverse('dashboard:order_detail', args=[o.number]))
         self.assertContains(detail, '/slip/')
         self.assertEqual(self.client.get(reverse('shop:order_slip', args=[o.number])).status_code, 200)
+
+
+class ShopSettingsTests(Base):
+    def body(self, **kw):
+        d = {'tagline': '', 'bank_name': '', 'bank_account_number': '', 'bank_account_name': '', 'promptpay_id': '',
+             'shipping_fee': '50', 'free_shipping_threshold': '500', 'phone': '', 'email': '', 'line_id': '', 'line_url': '',
+             'hours': '', 'address': '', 'facebook': '', 'instagram': '', 'tiktok': ''}
+        d.update(kw)
+        return d
+
+    def test_only_superuser(self):
+        self.client.force_login(self.staff)
+        self.assertEqual(self.client.get(reverse('dashboard:settings')).status_code, 403)
+        self.client.force_login(self.root)
+        self.assertEqual(self.client.get(reverse('dashboard:settings')).status_code, 200)
+
+    def test_save_and_cache_refresh(self):
+        from shop.models import ShopSettings
+        self.client.force_login(self.root)
+        ShopSettings.load()  # warm the cache
+        r = self.client.post(reverse('dashboard:settings'), self.body(
+            bank_name='กสิกรไทย', bank_account_number=' 123-4-56789-0 ', bank_account_name='NS SELECT',
+            promptpay_id='081-234-5678', shipping_fee='60', phone='02-000-0000', logo=png()))
+        self.assertRedirects(r, reverse('dashboard:settings'))
+        s = ShopSettings.load()
+        self.assertEqual((s.bank_account_number, s.promptpay_id, s.shipping_fee), ('123-4-56789-0', '0812345678', Decimal('60')))
+        self.assertTrue(s.logo.name.startswith('brand/'))
+        self.assertContains(self.client.get('/'), '02-000-0000')
+        r = self.client.post(reverse('dashboard:settings'), self.body(bank_name='กสิกรไทย', bank_account_number='1',
+                                                                    bank_account_name='NS SELECT', remove_logo='on'))
+        self.assertFalse(ShopSettings.load().logo)
+        s.logo.storage.delete(s.logo.name)
+
+    def test_validation(self):
+        self.client.force_login(self.root)
+        errors = self.client.post(reverse('dashboard:settings'), self.body(bank_name='กสิกรไทย', promptpay_id='12', shipping_fee='-1')).context['form'].errors
+        self.assertIn('promptpay_id', errors)
+        self.assertIn('shipping_fee', errors)
+        self.assertTrue(any('ครบทั้งสามช่อง' in e for v in errors.values() for e in v))
+
+
+class PageAdminTests(Base):
+    def setUp(self):
+        self.client.force_login(self.staff)
+
+    def test_list_flags_unfilled_drafts_and_publish(self):
+        from shop.models import Page
+        r = self.client.get(reverse('dashboard:pages'))
+        self.assertContains(r, 'ยังมีช่อง [ ] ที่ต้องกรอก')
+        p = Page.objects.get(slug='return-policy')
+        r = self.client.post(reverse('dashboard:page_edit', args=[p.pk]), {
+            'title': p.title, 'slug': p.slug, 'body': '## เงื่อนไข\nคืนได้ใน 7 วัน', 'is_published': 'on', 'show_in_footer': 'on', 'order': '1'})
+        self.assertRedirects(r, reverse('dashboard:pages'))
+        self.client.logout()
+        self.assertContains(self.client.get('/pages/return-policy/'), 'คืนได้ใน 7 วัน')
+
+    def test_create_with_auto_slug_and_delete(self):
+        from shop.models import Page
+        self.client.post(reverse('dashboard:page_new'), {'title': 'วิธีสั่งซื้อ', 'slug': '', 'body': 'x', 'order': '5'})
+        p = Page.objects.get(title='วิธีสั่งซื้อ')
+        self.assertEqual((p.slug, p.is_published), ('วิธีสั่งซื้อ', False))
+        self.client.post(reverse('dashboard:page_delete', args=[p.pk]))
+        self.assertFalse(Page.objects.filter(pk=p.pk).exists())

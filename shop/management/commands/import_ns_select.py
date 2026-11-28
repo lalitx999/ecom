@@ -15,7 +15,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from PIL import Image, ImageOps
 
-from shop.models import Brand, Category, Product, ProductImage, ProductVariant
+from shop.models import Brand, Category, Product, ProductImage, ProductVariant, ShopSettings
 from shop.text import make_slug, unique_slug
 
 CATEGORY_NAMES = {'skincare-set': 'ชุดบำรุงผิว', 'clothing': 'เสื้อผ้า', 'shoes': 'รองเท้า'}
@@ -42,6 +42,24 @@ def jpeg_bytes(path):
         buf = io.BytesIO()
         img.save(buf, 'JPEG', quality=86, optimize=True)
         return buf.getvalue()
+
+
+def logo_png(path, background=242, ink=20):
+    """The supplied logo is dark text on a flat light-grey panel: turn the grey into transparency and crop to the text."""
+    with Image.open(path) as img:
+        grey = img.convert('L')
+    span = background - 4 - ink
+    alpha = grey.point(lambda v: max(0, min(255, int((background - 4 - v) * 255 / span))))
+    box = alpha.point(lambda a: 255 if a > 40 else 0).getbbox()
+    rgba = Image.new('RGBA', grey.size, (11, 11, 30, 0))
+    rgba.putalpha(alpha)
+    if box:
+        pad = 12
+        box = (max(0, box[0] - pad), max(0, box[1] - pad), min(grey.width, box[2] + pad), min(grey.height, box[3] + pad))
+        rgba = rgba.crop(box)
+    buf = io.BytesIO()
+    rgba.save(buf, 'PNG', optimize=True)
+    return buf.getvalue()
 
 
 class Command(BaseCommand):
@@ -72,6 +90,12 @@ class Command(BaseCommand):
                 counts['products'] += 1
                 counts['variants'] += created_variants
                 counts['images'] += created_images
+
+        logo = source / catalogue.get('shop', {}).get('logo', 'logo.jpg')
+        shop = ShopSettings.row()
+        if not shop.logo and logo.exists():
+            shop.logo.save('ns-select-logo.png', ContentFile(logo_png(logo)), save=True)
+            self.stdout.write('ตั้งโลโก้ร้านจาก ' + logo.name)
 
         self.stdout.write(self.style.SUCCESS(
             f"นำเข้าแล้ว {counts['products']} สินค้า | ตัวเลือกใหม่ {counts['variants']} | รูปใหม่ {counts['images']}"))

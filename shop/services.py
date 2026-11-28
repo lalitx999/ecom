@@ -6,7 +6,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from . import notify
-from .models import Order, OrderItem, ProductVariant
+from .models import Order, OrderItem, ProductVariant, ShopSettings
 
 
 class StockError(Exception):
@@ -39,7 +39,7 @@ def place_order(user, cart, data):
         raise StockError([])
 
     subtotal = sum((variants[pk].price * qty for pk, qty in wanted.items()), Decimal('0'))
-    shipping = Decimal('0') if subtotal >= settings.FREE_SHIPPING_THRESHOLD else Decimal(settings.SHIPPING_FEE)
+    shipping = ShopSettings.load().shipping_for(subtotal)
     method = data['payment_method']
     order = Order.objects.create(
         user=user,

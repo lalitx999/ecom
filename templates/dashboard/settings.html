@@ -1,0 +1,83 @@
+{% extends 'dashboard/base.html' %}
+{% load static shop_extras %}
+{% block title %}ตั้งค่าร้าน{% endblock %}
+{% block heading %}ตั้งค่าร้าน{% endblock %}
+{% block content %}
+<form method="post" enctype="multipart/form-data" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="flash flash-error">{{ form.non_field_errors.0 }}</div>{% endif %}
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="panel mb-3"><div class="panel-head"><h2>รับชำระเงิน</h2></div><div class="panel-body pt-0">
+        <p class="cell-sub">แสดงให้ลูกค้าที่เลือก "โอนเงิน / พร้อมเพย์" เห็นในหน้าคำสั่งซื้อและอีเมลยืนยัน{% if not obj.transfer_lines %} <span class="tag red">ยังไม่ได้ตั้งค่า</span>{% endif %}</p>
+        {% include 'shop/_field.html' with field=form.bank_name %}
+        <div class="row">
+          <div class="col-md-6">{% include 'shop/_field.html' with field=form.bank_account_number %}</div>
+          <div class="col-md-6">{% include 'shop/_field.html' with field=form.bank_account_name %}</div>
+        </div>
+        {% include 'shop/_field.html' with field=form.promptpay_id %}
+      </div></div>
+
+      <div class="panel mb-3"><div class="panel-head"><h2>การจัดส่ง</h2></div><div class="panel-body pt-0">
+        <div class="row">
+          <div class="col-md-6">{% include 'shop/_field.html' with field=form.shipping_fee %}</div>
+          <div class="col-md-6">{% include 'shop/_field.html' with field=form.free_shipping_threshold %}</div>
+        </div>
+        <p class="cell-sub mb-0">ใช้กับคำสั่งซื้อใหม่เท่านั้น คำสั่งซื้อเดิมยังเก็บค่าส่งตามที่สั่งไว้</p>
+      </div></div>
+
+      <div class="panel mb-3"><div class="panel-head"><h2>ข้อมูลติดต่อ (แสดงใน footer)</h2></div><div class="panel-body pt-0">
+        <p class="cell-sub">ช่องที่เว้นว่างจะไม่แสดงในหน้าร้าน</p>
+        {% include 'shop/_field.html' with field=form.tagline %}
+        <div class="row">
+          <div class="col-md-6">{% include 'shop/_field.html' with field=form.phone %}</div>
+          <div class="col-md-6">{% include 'shop/_field.html' with field=form.email %}</div>
+          <div class="col-md-6">{% include 'shop/_field.html' with field=form.line_id %}</div>
+          <div class="col-md-6">{% include 'shop/_field.html' with field=form.line_url %}</div>
+        </div>
+        {% include 'shop/_field.html' with field=form.hours %}
+        {% include 'shop/_field.html' with field=form.address %}
+        <div class="row">
+          <div class="col-md-4">{% include 'shop/_field.html' with field=form.facebook %}</div>
+          <div class="col-md-4">{% include 'shop/_field.html' with field=form.instagram %}</div>
+          <div class="col-md-4">{% include 'shop/_field.html' with field=form.tiktok %}</div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="panel mb-3"><div class="panel-head"><h2>โลโก้</h2></div><div class="panel-body pt-0">
+        <div class="logo-preview mb-2">{% if obj.logo %}<img id="logoPreview" src="{{ obj.logo.url }}" alt="">{% else %}<span class="brand-logo" id="logoText">{{ SITE_NAME }}</span><img id="logoPreview" src="" alt="" hidden>{% endif %}</div>
+        {{ form.logo }}{% for e in form.logo.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+        <div class="cell-sub mt-1">{{ form.logo.help_text }} ไม่เกิน 5 MB</div>
+        {% if obj.logo %}<div class="form-check mt-2">{{ form.remove_logo }}<label class="form-check-label" for="{{ form.remove_logo.id_for_label }}">{{ form.remove_logo.label }}</label></div>{% endif %}
+        <hr>
+        <div class="d-flex align-items-center gap-3 mb-2">
+          <img class="favicon-preview" id="faviconPreview" src="{% if obj.favicon %}{{ obj.favicon.url }}{% else %}{% static 'img/favicon.svg' %}{% endif %}" alt="">
+          <label class="form-label mb-0" for="{{ form.favicon.id_for_label }}">{{ form.favicon.label }}</label>
+        </div>
+        {{ form.favicon }}{% for e in form.favicon.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+        <div class="cell-sub mt-1">{{ form.favicon.help_text }}</div>
+        {% if obj.favicon %}<div class="form-check mt-2">{{ form.remove_favicon }}<label class="form-check-label" for="{{ form.remove_favicon.id_for_label }}">{{ form.remove_favicon.label }}</label></div>{% endif %}
+      </div></div>
+      <button class="btn btn-primary w-100" style="height:48px">บันทึกการตั้งค่า</button>
+      <p class="cell-sub mt-2">แก้ไขล่าสุด {{ obj.updated_at|date:"j M Y H:i" }}</p>
+    </div>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+[['{{ form.logo.id_for_label }}', 'logoPreview'], ['{{ form.favicon.id_for_label }}', 'faviconPreview']].forEach(function (pair) {
+  var input = document.getElementById(pair[0]);
+  input.addEventListener('change', function () {
+    if (!input.files[0]) return;
+    var img = document.getElementById(pair[1]);
+    img.src = URL.createObjectURL(input.files[0]);
+    img.hidden = false;
+    var text = document.getElementById('logoText');
+    if (text && pair[1] === 'logoPreview') text.hidden = true;
+  });
+});
+</script>
+{% endblock %}

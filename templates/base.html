@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="csrf-token" content="{{ csrf_token }}">
   <title>{% block title %}{{ SITE_NAME }}{% endblock %} | {{ SITE_NAME }}</title>
+  <link rel="icon" href="{% if SHOP.favicon %}{{ SHOP.favicon.url }}{% else %}{% static 'img/favicon.svg' %}{% endif %}">
   <link rel="stylesheet" href="{% static 'vendor/bootstrap/css/bootstrap.min.css' %}">
   <link rel="stylesheet" href="{% static 'css/shop.css' %}">
 </head>
@@ -15,8 +16,8 @@
   <div class="container pt-3">
     <div class="d-flex align-items-center justify-content-between gap-3">
       <a href="{% url 'shop:home' %}" class="d-flex align-items-center gap-3 text-decoration-none">
-        <span class="brand-logo">{{ SITE_NAME }}</span>
-        <span class="brand-greet d-none d-sm-block">{{ SITE_TAGLINE }}<br>{{ SITE_SLOGAN }}</span>
+        <span class="brand-logo">{% if SHOP.logo %}<img class="brand-logo-img" src="{{ SHOP.logo.url }}" alt="{{ SITE_NAME }}">{% else %}{{ SITE_NAME }}{% endif %}</span>
+        {% if not SHOP.logo %}<span class="brand-greet d-none d-sm-block">{{ SITE_TAGLINE }}<br>{{ SITE_SLOGAN }}</span>{% endif %}
       </a>
       <div class="d-flex align-items-center gap-1">
         <a href="{% if user.is_authenticated %}{% url 'shop:orders' %}{% else %}{% url 'shop:login' %}{% endif %}" class="header-action" aria-label="{% if user.is_authenticated %}คำสั่งซื้อของฉัน{% else %}เข้าสู่ระบบ{% endif %}">{% icon 'user' 28 %}<span class="label">{% if user.is_authenticated %}บัญชี{% else %}เข้าสู่ระบบ{% endif %}</span></a>
@@ -57,20 +58,20 @@
   <div class="container footer-main">
     <div class="row g-4 g-lg-5">
       <div class="col-12 col-lg-4">
-        <a href="{% url 'shop:home' %}" class="brand-logo footer-logo">{{ SITE_NAME }}</a>
-        <p class="footer-tagline">{{ CONTACT.tagline|default:SITE_SLOGAN }}</p>
+        <a href="{% url 'shop:home' %}" class="brand-logo footer-logo">{% if SHOP.logo %}<img class="brand-logo-img" src="{{ SHOP.logo.url }}" alt="{{ SITE_NAME }}">{% else %}{{ SITE_NAME }}{% endif %}</a>
+        <p class="footer-tagline">{{ SHOP.tagline|default:SITE_SLOGAN }}</p>
         <ul class="footer-contact">
-          {% if CONTACT.phone %}<li>{% icon 'phone' 18 %}<a href="tel:{{ CONTACT.phone|cut:' '|cut:'-' }}">{{ CONTACT.phone }}</a></li>{% endif %}
-          {% if CONTACT.email %}<li>{% icon 'mail' 18 %}<a href="mailto:{{ CONTACT.email }}">{{ CONTACT.email }}</a></li>{% endif %}
-          {% if CONTACT.line_id or CONTACT.line_url %}<li>{% icon 'message' 18 %}{% if CONTACT.line_url %}<a href="{{ CONTACT.line_url }}" target="_blank" rel="noopener">LINE {{ CONTACT.line_id }}</a>{% else %}<span>LINE {{ CONTACT.line_id }}</span>{% endif %}</li>{% endif %}
-          {% if CONTACT.hours %}<li>{% icon 'clock' 18 %}<span>{{ CONTACT.hours }}</span></li>{% endif %}
-          {% if CONTACT.address %}<li>{% icon 'map-pin' 18 %}<span>{{ CONTACT.address|linebreaksbr }}</span></li>{% endif %}
+          {% if SHOP.phone %}<li>{% icon 'phone' 18 %}<a href="tel:{{ SHOP.phone|cut:' '|cut:'-' }}">{{ SHOP.phone }}</a></li>{% endif %}
+          {% if SHOP.email %}<li>{% icon 'mail' 18 %}<a href="mailto:{{ SHOP.email }}">{{ SHOP.email }}</a></li>{% endif %}
+          {% if SHOP.line_id or SHOP.line_url %}<li>{% icon 'message' 18 %}{% if SHOP.line_url %}<a href="{{ SHOP.line_url }}" target="_blank" rel="noopener">LINE {{ SHOP.line_id }}</a>{% else %}<span>LINE {{ SHOP.line_id }}</span>{% endif %}</li>{% endif %}
+          {% if SHOP.hours %}<li>{% icon 'clock' 18 %}<span>{{ SHOP.hours }}</span></li>{% endif %}
+          {% if SHOP.address %}<li>{% icon 'map-pin' 18 %}<span>{{ SHOP.address|linebreaksbr }}</span></li>{% endif %}
         </ul>
-        {% if CONTACT.facebook or CONTACT.instagram or CONTACT.tiktok %}
+        {% if SHOP.facebook or SHOP.instagram or SHOP.tiktok %}
         <div class="footer-social">
-          {% if CONTACT.facebook %}<a href="{{ CONTACT.facebook }}" target="_blank" rel="noopener">Facebook</a>{% endif %}
-          {% if CONTACT.instagram %}<a href="{{ CONTACT.instagram }}" target="_blank" rel="noopener">Instagram</a>{% endif %}
-          {% if CONTACT.tiktok %}<a href="{{ CONTACT.tiktok }}" target="_blank" rel="noopener">TikTok</a>{% endif %}
+          {% if SHOP.facebook %}<a href="{{ SHOP.facebook }}" target="_blank" rel="noopener">Facebook</a>{% endif %}
+          {% if SHOP.instagram %}<a href="{{ SHOP.instagram }}" target="_blank" rel="noopener">Instagram</a>{% endif %}
+          {% if SHOP.tiktok %}<a href="{{ SHOP.tiktok }}" target="_blank" rel="noopener">TikTok</a>{% endif %}
         </div>
         {% endif %}
       </div>
@@ -106,7 +107,7 @@
           {% if user.is_staff %}<li><a href="{% url 'dashboard:home' %}">จัดการร้าน</a></li>{% endif %}
         </ul>
         <ul class="footer-facts">
-          <li>{% icon 'truck' 18 %}<span>ค่าจัดส่ง {{ SHIPPING_FEE }} บาท ส่งฟรีเมื่อซื้อครบ {{ FREE_SHIPPING_THRESHOLD }} บาท</span></li>
+          <li>{% icon 'truck' 18 %}<span>{% if not FREE_SHIPPING_THRESHOLD or not SHIPPING_FEE %}ส่งฟรีทุกคำสั่งซื้อ{% else %}ค่าจัดส่ง {{ SHIPPING_FEE|baht }} บาท ส่งฟรีเมื่อซื้อครบ {{ FREE_SHIPPING_THRESHOLD|baht }} บาท{% endif %}</span></li>
           <li>{% icon 'tag' 18 %}<span>ชำระเงินได้ทั้งเก็บเงินปลายทางและโอนเงิน/พร้อมเพย์</span></li>
         </ul>
       </div>
@@ -115,6 +116,7 @@
   <div class="footer-bottom">
     <div class="container d-flex flex-wrap justify-content-between gap-2">
       <span>&copy; {% now 'Y' %} {{ SITE_NAME }} สงวนลิขสิทธิ์</span>
+      {% if footer_pages %}<nav class="footer-policy" aria-label="นโยบายของร้าน">{% for p in footer_pages %}<a href="{{ p.get_absolute_url }}">{{ p.title }}</a>{% endfor %}</nav>{% endif %}
     </div>
   </div>
 </footer>

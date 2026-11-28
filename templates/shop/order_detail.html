@@ -21,7 +21,7 @@
   {% endif %}{% endif %}
 
   {% if order.awaiting_payment and order.payment_method == 'transfer' %}
-    <div class="ship-note mb-3">กรุณาโอนเงิน {{ order.total|baht }} บาท<br>{{ transfer_info }}</div>
+    <div class="ship-note mb-3">กรุณาโอนเงิน {{ order.total|baht }} บาท{% for line in transfer_lines %}<br>{{ line }}{% empty %}<br>ร้านจะแจ้งเลขบัญชีให้ทางอีเมลหรือช่องทางติดต่อของร้าน{% endfor %}</div>
     <div class="panel-lite mb-3">
       <div class="fw-bold mb-2">แนบสลิปโอนเงิน</div>
       {% if order.slip_url %}

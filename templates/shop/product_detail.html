@@ -6,7 +6,7 @@
 <header class="site-header d-lg-none">
   <div class="container py-3 d-flex align-items-center justify-content-between">
     <a href="javascript:history.back()" class="header-action" aria-label="ย้อนกลับ">{% icon 'chevron-left' 30 %}</a>
-    <a href="{% url 'shop:home' %}" class="brand-logo">{{ SITE_NAME }}</a>
+    <a href="{% url 'shop:home' %}" class="brand-logo">{% if SHOP.logo %}<img class="brand-logo-img" src="{{ SHOP.logo.url }}" alt="{{ SITE_NAME }}">{% else %}{{ SITE_NAME }}{% endif %}</a>
     <button type="button" class="header-action js-open-cart" data-bs-toggle="offcanvas" data-bs-target="#cartDrawer" aria-label="ตะกร้าสินค้า">
       {% icon 'cart' 28 %}<span class="cart-badge" data-cart-count data-count="{{ cart|length }}">{{ cart|length }}</span>
     </button>
@@ -14,7 +14,7 @@
 </header>
 <header class="site-header d-none d-lg-block">
   <div class="container py-3 d-flex align-items-center justify-content-between">
-    <a href="{% url 'shop:home' %}" class="brand-logo">{{ SITE_NAME }}</a>
+    <a href="{% url 'shop:home' %}" class="brand-logo">{% if SHOP.logo %}<img class="brand-logo-img" src="{{ SHOP.logo.url }}" alt="{{ SITE_NAME }}">{% else %}{{ SITE_NAME }}{% endif %}</a>
     <form class="search-box flex-grow-1 mx-5" action="{% url 'shop:product_list' %}" method="get" role="search" style="max-width:560px">
       {% icon 'search' 26 %}<input type="search" name="q" class="form-control" placeholder="ค้นหาสินค้า" aria-label="ค้นหาสินค้า" style="height:48px">
     </form>

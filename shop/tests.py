@@ -9,7 +9,7 @@ from django.urls import reverse
 
 from .models import Category, Order, Product, ProductVariant
 from .services import InvalidTransition, SlipNotAllowed, attach_slip, change_order_status
-from .testing import SlipStorageMixin, image_file, make_variant
+from .testing import CleanCacheMixin, SlipStorageMixin, image_file, make_variant
 
 User = get_user_model()
 
@@ -19,7 +19,7 @@ ADDRESS = {
 }
 
 
-class ShopTestCase(SlipStorageMixin, TestCase):
+class ShopTestCase(CleanCacheMixin, SlipStorageMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         cat = Category.objects.create(name='หมวด', slug='cat')
@@ -489,3 +489,127 @@ class ImportCommandTests(TestCase):
                 self.assertEqual(ProductVariant.objects.get().stock, 8)                                # stock not overwritten
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+
+
+class ShopSettingsStorefrontTests(ShopTestCase):
+    def set(self, **kw):
+        from .models import ShopSettings
+        s = ShopSettings.row()
+        for k, v in kw.items():
+            setattr(s, k, v)
+        s.save()
+
+    def test_shipping_comes_from_settings(self):
+        self.set(shipping_fee=Decimal('40'), free_shipping_threshold=Decimal('1000'))
+        self.add(self.pricey, 1)  # 600 < 1000 -> pays 40
+        cart = self.client.get(reverse('shop:cart')).context['cart']
+        self.assertEqual((cart.shipping_fee, cart.free_shipping_gap), (Decimal('40'), Decimal('400')))
+        self.client.force_login(self.user)
+        self.client.post(reverse('shop:checkout'), ADDRESS)
+        self.assertEqual(Order.objects.get().shipping_fee, Decimal('40'))
+        self.assertContains(self.client.get(reverse('shop:home')), 'ค่าจัดส่ง 40 บาท ส่งฟรีเมื่อซื้อครบ 1,000 บาท')
+
+    def test_free_shipping_for_everyone(self):
+        self.set(free_shipping_threshold=Decimal('0'))
+        self.add(self.cheap, 1)
+        cart = self.client.get(reverse('shop:cart')).context['cart']
+        self.assertEqual((cart.shipping_fee, cart.free_shipping_gap), (Decimal('0'), Decimal('0')))
+        self.assertContains(self.client.get(reverse('shop:home')), 'ส่งฟรีทุกคำสั่งซื้อ')
+
+    def test_transfer_details_on_order_page_and_email(self):
+        self.add(self.cheap)
+        self.client.force_login(self.user)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse('shop:checkout'), {**ADDRESS, 'payment_method': 'transfer'})
+        order = Order.objects.get()
+        self.assertContains(self.client.get(order.get_absolute_url()), 'ร้านจะแจ้งเลขบัญชีให้')   # nothing set yet
+        self.set(bank_name='กสิกรไทย', bank_account_number='123-4-56789-0', bank_account_name='NS SELECT', promptpay_id='0812345678')
+        r = self.client.get(order.get_absolute_url())
+        self.assertContains(r, 'เลขที่บัญชี 123-4-56789-0')
+        self.assertContains(r, 'พร้อมเพย์ 0812345678')
+        self.assertNotIn('123-4-56789-0', mail.outbox[0].body)       # first mail was sent before the account was set
+        mail.outbox.clear()
+        with self.captureOnCommitCallbacks(execute=True):
+            from .notify import order_placed
+            order_placed(order)
+        self.assertIn('123-4-56789-0', mail.outbox[0].body)
+
+    def test_logo_replaces_text_brand(self):
+        self.assertNotContains(self.client.get(reverse('shop:home')), 'brand-logo-img')
+        self.set(logo='brand/test-logo.png')
+        r = self.client.get(reverse('shop:home'))
+        self.assertContains(r, 'class="brand-logo-img" src="/media/brand/test-logo.png"')
+        self.assertContains(r, 'rel="icon"')
+
+
+class ContentPageTests(ShopTestCase):
+    def test_drafts_from_migration_are_hidden(self):
+        from .models import Page
+        self.assertEqual(set(Page.objects.values_list('slug', flat=True)), {'return-policy', 'privacy-policy', 'terms'})
+        self.assertEqual(self.client.get('/pages/terms/').status_code, 404)
+        self.assertNotContains(self.client.get(reverse('shop:home')), '/pages/terms/')
+        self.client.force_login(User.objects.create_user('s2@example.com', 's2@example.com', 'pw-Test-12345', is_staff=True))
+        self.assertContains(self.client.get('/pages/terms/'), 'ยังไม่เผยแพร่')    # staff can preview
+
+    def test_published_page_renders_safely_and_links_in_footer(self):
+        from .models import Page
+        Page.objects.filter(slug='return-policy').update(is_published=True, body='## หัวข้อ\nบรรทัด <script>x</script>\nต่อ')
+        r = self.client.get('/pages/return-policy/')
+        self.assertContains(r, '<h2 class="h5 fw-bold mt-4 mb-2">หัวข้อ</h2>', html=False)
+        self.assertNotContains(r, '<script>x</script>')
+        self.assertContains(self.client.get(reverse('shop:home')), 'href="/pages/return-policy/"')
+
+    def test_register_requires_accepting_published_terms(self):
+        from .models import Page
+        body = {'full_name': 'ก', 'email': 'n@example.com', 'password1': 'Strong-pass-987', 'password2': 'Strong-pass-987'}
+        self.assertNotIn('accept_terms', self.client.get(reverse('shop:register')).context['form'].fields)
+        Page.objects.filter(slug__in=['terms', 'privacy-policy']).update(is_published=True)
+        r = self.client.post(reverse('shop:register'), body)
+        self.assertIn('accept_terms', r.context['form'].errors)
+        self.assertFalse(User.objects.filter(username='n@example.com').exists())
+        self.assertEqual(self.client.post(reverse('shop:register'), {**body, 'accept_terms': 'on'}).status_code, 302)
+
+
+class RateLimitTests(ShopTestCase):
+    def login(self, password, username='a@example.com', ip='10.0.0.1'):
+        return self.client.post(reverse('shop:login'), {'username': username, 'password': password}, REMOTE_ADDR=ip)
+
+    def test_account_locked_after_five_wrong_passwords(self):
+        for _ in range(5):
+            self.assertEqual(self.login('wrong').status_code, 200)
+        r = self.login('pw-Test-12345')                      # correct password, but locked
+        self.assertContains(r, 'ใส่รหัสผ่านผิดหลายครั้งเกินไป')
+        self.assertNotIn('_auth_user_id', self.client.session)
+        self.assertEqual(self.login('pw-Test-12345', username='b@example.com').status_code, 302)   # other accounts fine
+
+    def test_success_resets_the_account_counter(self):
+        for _ in range(4):
+            self.login('wrong')
+        self.assertEqual(self.login('pw-Test-12345').status_code, 302)
+        self.client.logout()
+        for _ in range(4):
+            self.login('wrong')
+        self.assertEqual(self.login('pw-Test-12345').status_code, 302)
+
+    def test_ip_limit_across_accounts(self):
+        for i in range(20):
+            self.login('wrong', username=f'x{i}@example.com', ip='10.9.9.9')
+        self.assertContains(self.login('pw-Test-12345', ip='10.9.9.9'), 'ใส่รหัสผ่านผิดหลายครั้งเกินไป')
+        self.assertEqual(self.login('pw-Test-12345', ip='10.9.9.8').status_code, 302)
+
+    def test_password_reset_limits(self):
+        url = reverse('shop:password_reset')
+        for _ in range(4):
+            r = self.client.post(url, {'email': 'a@example.com'}, REMOTE_ADDR='10.1.1.1')
+            self.assertRedirects(r, reverse('shop:password_reset_done'))
+        self.assertEqual(len(mail.outbox), 3)                # 4th looks the same but sends nothing
+        self.client.post(url, {'email': 'b@example.com'}, REMOTE_ADDR='10.1.1.1')
+        r = self.client.post(url, {'email': 'b@example.com'}, REMOTE_ADDR='10.1.1.1')   # 6th from this IP
+        self.assertContains(r, 'ส่งคำขอบ่อยเกินไป')
+
+
+class ErrorPageTests(ShopTestCase):
+    def test_404_uses_shop_layout(self):
+        r = self.client.get('/products/does-not-exist/')
+        self.assertEqual(r.status_code, 404)
+        self.assertContains(r, 'ไม่พบหน้าที่คุณต้องการ', status_code=404)

@@ -32,6 +32,13 @@ class LoginForm(StyledFormMixin, AuthenticationForm):
         self.fields['password'].label = 'รหัสผ่าน'
         self._style()
 
+    def clean(self):
+        from .ratelimit import LOGIN_WINDOW, login_blocked
+        if login_blocked(self.request, self.data.get('username', '')):
+            raise forms.ValidationError(
+                f'ใส่รหัสผ่านผิดหลายครั้งเกินไป กรุณารอ {LOGIN_WINDOW // 60} นาทีแล้วลองใหม่ หรือกด "ลืมรหัสผ่าน"', code='rate_limited')
+        return super().clean()
+
 
 
 class RegisterForm(StyledFormMixin, forms.Form):
@@ -40,8 +47,13 @@ class RegisterForm(StyledFormMixin, forms.Form):
     password1 = forms.CharField(label='รหัสผ่าน', strip=False, widget=forms.PasswordInput(attrs={'autocomplete': 'new-password'}))
     password2 = forms.CharField(label='ยืนยันรหัสผ่าน', strip=False, widget=forms.PasswordInput(attrs={'autocomplete': 'new-password'}))
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, policy_pages=(), **kwargs):
         super().__init__(*args, **kwargs)
+        self.policy_pages = list(policy_pages)
+        if self.policy_pages:  # only ask once the shop has published its terms / privacy policy
+            self.fields['accept_terms'] = forms.BooleanField(
+                label='ยอมรับ' + ' และ '.join(p.title for p in self.policy_pages),
+                error_messages={'required': 'กรุณายอมรับเงื่อนไขก่อนสมัครสมาชิก'})
         self._style()
 
     def clean_email(self):

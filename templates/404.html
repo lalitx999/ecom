@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% load shop_extras %}
+{% block title %}ไม่พบหน้านี้{% endblock %}
+{% block content %}
+<div class="container py-5">
+  <div class="empty-state">
+    <div class="disc">{% icon 'search' 44 %}</div>
+    <h1 class="h4 fw-bold">ไม่พบหน้าที่คุณต้องการ</h1>
+    <p class="text-muted-2">ลิงก์อาจไม่ถูกต้อง หรือสินค้านี้ไม่ได้วางขายแล้ว</p>
+    <div class="d-flex gap-2 justify-content-center flex-wrap">
+      <a href="{% url 'shop:home' %}" class="btn btn-primary px-4">กลับหน้าแรก</a>
+      <a href="{% url 'shop:product_list' %}" class="btn btn-outline-primary px-4">ดูสินค้าทั้งหมด</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

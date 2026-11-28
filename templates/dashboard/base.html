@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token }}">
   <title>{% block title %}จัดการร้าน{% endblock %} | {{ SITE_NAME }} Admin</title>
+  <link rel="icon" href="{% if SHOP.favicon %}{{ SHOP.favicon.url }}{% else %}{% static 'img/favicon.svg' %}{% endif %}">
   <link rel="stylesheet" href="{% static 'vendor/bootstrap/css/bootstrap.min.css' %}">
   <link rel="stylesheet" href="{% static 'css/shop.css' %}">
   <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
@@ -27,6 +28,10 @@
       <li><a href="{% url 'dashboard:users' %}" class="{% if n == 'users' or n == 'user_new' or n == 'user_edit' or n == 'user_password' or n == 'user_delete' %}active{% endif %}">{% icon 'users' 22 %} ผู้ใช้</a></li>
       {% endif %}
       <li><a href="{% url 'dashboard:reports' %}" class="{% if n == 'reports' %}active{% endif %}">{% icon 'bar-chart' 22 %} รายงานยอดขาย</a></li>
+      <li><a href="{% url 'dashboard:pages' %}" class="{% if n == 'pages' or n == 'page_new' or n == 'page_edit' or n == 'page_delete' %}active{% endif %}">{% icon 'file-text' 22 %} หน้าเนื้อหา/นโยบาย</a></li>
+      {% if user.is_superuser %}
+      <li><a href="{% url 'dashboard:settings' %}" class="{% if n == 'settings' %}active{% endif %}">{% icon 'edit' 22 %} ตั้งค่าร้าน</a></li>
+      {% endif %}
       <li class="sep"></li>
       <li><a href="{% url 'shop:home' %}" target="_blank" rel="noopener">{% icon 'cart' 22 %} ดูหน้าร้าน</a></li>
       <li>

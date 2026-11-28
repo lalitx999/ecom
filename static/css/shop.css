@@ -261,3 +261,10 @@ body.has-buy-bar { padding-bottom: 96px; }
 .spec-list dt { font-weight: 600; }
 .spec-list dd { margin: 0; color: inherit; }
 .hero-slide h2 { overflow-wrap: anywhere; }
+.page-article { max-width: 760px; }
+.footer-policy { display: flex; flex-wrap: wrap; gap: .25rem 1rem; }
+.footer-policy a { color: inherit; }
+.footer-policy a:hover { color: #fff; }
+.brand-logo-img { display: block; height: 48px; width: auto; background: #fff; border-radius: .6rem; padding: .3rem .6rem; }
+.footer-logo .brand-logo-img { height: 56px; }
+@media (max-width: 575.98px) { .brand-logo-img { height: 40px; } }

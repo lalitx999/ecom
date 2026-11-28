@@ -37,6 +37,8 @@ private_media/*
 
 # Uploaded / imported product images (recreate with: python manage.py import_ns_select)
 media/products/*
+media/brand/*
 
-# collectstatic output
+# collectstatic output and runtime files (cache)
 staticfiles/
+var/

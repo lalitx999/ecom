@@ -12,12 +12,13 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from shop.models import Brand, Category, Order, Product, ProductVariant
+from shop.models import Brand, Category, Order, Page, Product, ProductVariant, ShopSettings
 from shop import notify
 from shop.services import InvalidTransition, change_order_status
 
 from . import reports
-from .forms import CategoryForm, ImageFormSet, OrderStatusForm, ProductForm, SetPasswordForm, UserForm, VariantFormSet
+from .forms import (CategoryForm, ImageFormSet, OrderStatusForm, PageForm, ProductForm, SetPasswordForm, ShopSettingsForm,
+                    UserForm, VariantFormSet)
 from .permissions import staff_required, superuser_required
 
 User = get_user_model()
@@ -211,6 +212,44 @@ def category_delete(request, pk):
             messages.success(request, f'ลบหมวดหมู่ "{category.name}" แล้ว')
         return redirect('dashboard:categories')
     return render(request, 'dashboard/confirm_delete.html', {'title': 'ลบหมวดหมู่', 'object_name': category.name, 'back': 'dashboard:categories'})
+
+
+# ------------------------------------------------------------ shop settings & pages
+@superuser_required
+def shop_settings(request):
+    obj = ShopSettings.row()  # the real row, not the cached copy
+    form = ShopSettingsForm(request.POST or None, request.FILES or None, instance=obj)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'บันทึกการตั้งค่าร้านแล้ว')
+        return redirect('dashboard:settings')
+    return render(request, 'dashboard/settings.html', {'form': form, 'obj': obj})
+
+
+@staff_required
+def page_list(request):
+    return render(request, 'dashboard/page_list.html', {'pages': Page.objects.all()})
+
+
+@staff_required
+def page_form(request, pk=None):
+    page = get_object_or_404(Page, pk=pk) if pk else None
+    form = PageForm(request.POST or None, instance=page)
+    if request.method == 'POST' and form.is_valid():
+        saved = form.save()
+        messages.success(request, f'บันทึกหน้า "{saved.title}" แล้ว' + ('' if saved.is_published else ' (ยังไม่เผยแพร่)'))
+        return redirect('dashboard:pages')
+    return render(request, 'dashboard/page_form.html', {'form': form, 'page': page})
+
+
+@staff_required
+def page_delete(request, pk):
+    page = get_object_or_404(Page, pk=pk)
+    if request.method == 'POST':
+        page.delete()
+        messages.success(request, f'ลบหน้า "{page.title}" แล้ว')
+        return redirect('dashboard:pages')
+    return render(request, 'dashboard/confirm_delete.html', {'title': 'ลบหน้าเนื้อหา', 'object_name': page.title, 'back': 'dashboard:pages'})
 
 
 # ------------------------------------------------------------ orders

@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.conf import settings
 
-from .models import ProductVariant
+from .models import ProductVariant, ShopSettings
 
 
 @dataclass
@@ -113,9 +113,9 @@ class Cart:
 
     @property
     def shipping_fee(self):
-        if self.is_empty or self.subtotal >= settings.FREE_SHIPPING_THRESHOLD:
+        if self.is_empty:
             return Decimal('0')
-        return Decimal(settings.SHIPPING_FEE)
+        return ShopSettings.load().shipping_for(self.subtotal)
 
     @property
     def total(self):
@@ -126,7 +126,9 @@ class Cart:
         """How much more to spend for free shipping (0 when already free or empty)."""
         if self.is_empty:
             return Decimal('0')
-        return max(Decimal('0'), Decimal(settings.FREE_SHIPPING_THRESHOLD) - self.subtotal)
+        if self.shipping_fee == 0:
+            return Decimal('0')
+        return max(Decimal('0'), ShopSettings.load().free_shipping_threshold - self.subtotal)
 
     def sync(self):
         """Rewrite the session so it matches what is really purchasable (clamp qty, drop unavailable)."""

@@ -8,6 +8,7 @@ from django.db import transaction
 from django.template.loader import render_to_string
 from django.urls import reverse
 
+from .models import ShopSettings
 from .templatetags.shop_extras import baht
 
 logger = logging.getLogger('shop')
@@ -21,7 +22,9 @@ def _send(to, subject, **ctx):
     to = [t for t in dict.fromkeys(to) if t]
     if not to:
         return
-    ctx.update(site_name=settings.SITE_NAME, site_url=settings.SITE_URL)
+    shop = ShopSettings.load()
+    ctx.update(site_name=settings.SITE_NAME, site_url=settings.SITE_URL,
+               logo_url=_url(shop.logo.url) if shop.logo else '')
     try:
         msg = EmailMultiAlternatives(f'[{settings.SITE_NAME}] {subject}', render_to_string('emails/message.txt', ctx),
                                      settings.DEFAULT_FROM_EMAIL, to)
@@ -59,8 +62,7 @@ def order_placed(order):
 def _order_placed(order):
     customer_note = []
     if order.payment_method == order.Payment.TRANSFER:
-        customer_note = [f'กรุณาโอนเงิน {baht(order.total)} บาท แล้วแนบสลิปที่หน้าคำสั่งซื้อ',
-                         settings.PAYMENT_TRANSFER_INFO]
+        customer_note = [f'กรุณาโอนเงิน {baht(order.total)} บาท แล้วแนบสลิปที่หน้าคำสั่งซื้อ'] + ShopSettings.load().transfer_lines
     _send([order.user.email], f'ยืนยันคำสั่งซื้อ {order.number}',
           heading='ขอบคุณที่สั่งซื้อ', intro=[f'เราได้รับคำสั่งซื้อเลขที่ {order.number} ของคุณเรียบร้อยแล้ว'] + customer_note,
           items=_items(order), rows=_totals(order) + [('วิธีชำระเงิน', order.get_payment_method_display())],

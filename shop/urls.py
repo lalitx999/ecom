@@ -24,7 +24,8 @@ urlpatterns = [
     path('login/', auth_views.LoginView.as_view(template_name='shop/login.html', authentication_form=LoginForm, redirect_authenticated_user=True), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('register/', views.register, name='register'),
-    path('password-reset/', auth_views.PasswordResetView.as_view(
+    path('pages/<str:slug>/', views.page, name='page'),
+    path('password-reset/', views.RateLimitedPasswordResetView.as_view(
         template_name='shop/password_reset_form.html', form_class=ResetRequestForm,
         email_template_name='registration/password_reset_email.txt', subject_template_name='registration/password_reset_subject.txt',
         extra_email_context={'brand': settings.SITE_NAME},

@@ -9,6 +9,15 @@ from PIL import Image
 from .models import Order
 
 
+class CleanCacheMixin:
+    """Rate-limit counters and the cached shop settings live in the cache, which outlives each test's DB rollback."""
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        super().setUp()
+
+
 class SlipStorageMixin:
     """Keeps uploaded test slips out of the real private_media folder."""
 

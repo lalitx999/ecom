@@ -2,6 +2,7 @@ from decimal import Decimal
 from urllib.parse import quote
 
 from django.conf import settings
+from django.core.cache import cache
 from django.db import models
 from django.templatetags.static import static
 from django.utils import timezone
@@ -340,3 +341,133 @@ class OrderItem(models.Model):
     @property
     def line_total(self):
         return self.unit_price * self.qty
+
+
+# ---------------------------------------------------------------- shop settings & content pages
+SETTINGS_CACHE_KEY = 'shop-settings-v1'
+
+
+class ShopSettings(models.Model):
+    """Single row (pk=1) the owner edits in the back office instead of editing code or .env."""
+    tagline = models.CharField('คำโปรยใต้ชื่อร้าน (footer)', max_length=200, blank=True)
+    logo = models.ImageField('โลโก้', upload_to='brand/', blank=True, help_text='แนะนำ PNG พื้นใส หรือ JPG พื้นขาว แนวนอน')
+    favicon = models.ImageField('ไอคอนแท็บเบราว์เซอร์', upload_to='brand/', blank=True, help_text='รูปสี่เหลี่ยมจัตุรัส อย่างน้อย 64x64')
+
+    bank_name = models.CharField('ธนาคาร', max_length=100, blank=True)
+    bank_account_number = models.CharField('เลขที่บัญชี', max_length=30, blank=True)
+    bank_account_name = models.CharField('ชื่อบัญชี', max_length=150, blank=True)
+    promptpay_id = models.CharField('พร้อมเพย์ (เบอร์โทรหรือเลขประจำตัว)', max_length=20, blank=True)
+
+    shipping_fee = models.DecimalField('ค่าจัดส่ง (บาท)', max_digits=8, decimal_places=2, default=Decimal('50'))
+    free_shipping_threshold = models.DecimalField('ส่งฟรีเมื่อซื้อครบ (บาท)', max_digits=10, decimal_places=2, default=Decimal('500'),
+                                                  help_text='ใส่ 0 เพื่อส่งฟรีทุกออเดอร์')
+
+    phone = models.CharField('เบอร์โทร', max_length=30, blank=True)
+    email = models.EmailField('อีเมลร้าน', blank=True)
+    line_id = models.CharField('LINE ID', max_length=50, blank=True)
+    line_url = models.URLField('ลิงก์ LINE', blank=True)
+    hours = models.CharField('เวลาทำการ', max_length=100, blank=True)
+    address = models.TextField('ที่อยู่ร้าน', blank=True)
+    facebook = models.URLField('Facebook', blank=True)
+    instagram = models.URLField('Instagram', blank=True)
+    tiktok = models.URLField('TikTok', blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'ตั้งค่าร้าน'
+        verbose_name_plural = 'ตั้งค่าร้าน'
+
+    def __str__(self):
+        return 'ตั้งค่าร้าน'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+        cache.delete(SETTINGS_CACHE_KEY)
+
+    @classmethod
+    def load(cls):
+        """Cached for 5 minutes; saving clears the cache. First call creates the row from the old settings/.env values."""
+        obj = cache.get(SETTINGS_CACHE_KEY)
+        if obj is None:
+            obj = cls.objects.filter(pk=1).first()
+            if obj is None:
+                c = settings.SHOP_CONTACT
+                obj = cls(pk=1, tagline=c.get('tagline', ''), phone=c.get('phone', ''), email=c.get('email', ''),
+                          line_id=c.get('line_id', ''), line_url=c.get('line_url', ''), hours=c.get('hours', ''),
+                          address=c.get('address', ''), facebook=c.get('facebook', ''), instagram=c.get('instagram', ''),
+                          tiktok=c.get('tiktok', ''), shipping_fee=Decimal(settings.SHIPPING_FEE),
+                          free_shipping_threshold=Decimal(settings.FREE_SHIPPING_THRESHOLD))
+                obj.save()
+            cache.set(SETTINGS_CACHE_KEY, obj, 300)
+        return obj
+
+    @classmethod
+    def row(cls):
+        """The real database row, for editing (load() may return a cached copy)."""
+        obj = cls.objects.filter(pk=1).first()
+        if obj is None:
+            cache.delete(SETTINGS_CACHE_KEY)  # a cached copy without a row (e.g. after a DB restore)
+            cls.load()
+            obj = cls.objects.get(pk=1)
+        return obj
+
+    @property
+    def has_bank_account(self):
+        return bool(self.bank_name and self.bank_account_number and self.bank_account_name)
+
+    @property
+    def transfer_lines(self):
+        """What a customer paying by transfer needs to see (empty when nothing is set yet)."""
+        lines = []
+        if self.has_bank_account:
+            lines.append(f'ธนาคาร {self.bank_name}  เลขที่บัญชี {self.bank_account_number}  ชื่อบัญชี {self.bank_account_name}')
+        if self.promptpay_id:
+            lines.append(f'พร้อมเพย์ {self.promptpay_id}')
+        return lines
+
+    def shipping_for(self, subtotal):
+        if subtotal <= 0 or subtotal >= self.free_shipping_threshold:
+            return Decimal('0')
+        return self.shipping_fee
+
+
+class Page(models.Model):
+    """Content pages such as return policy, privacy policy and terms."""
+    title = models.CharField('หัวข้อ', max_length=150)
+    slug = ThaiSlugField('ชื่อใน URL', unique=True, allow_unicode=True)
+    body = models.TextField('เนื้อหา', blank=True, help_text='พิมพ์ข้อความธรรมดา ขึ้นบรรทัดใหม่ได้ บรรทัดที่ขึ้นต้นด้วย "## " จะเป็นหัวข้อย่อย')
+    is_published = models.BooleanField('เผยแพร่', default=False)
+    show_in_footer = models.BooleanField('แสดงลิงก์ใน footer', default=True)
+    order = models.PositiveIntegerField('ลำดับ', default=0)
+    updated_at = models.DateTimeField('แก้ไขล่าสุด', auto_now=True)
+
+    class Meta:
+        ordering = ['order', 'title']
+        verbose_name = 'หน้าเนื้อหา'
+        verbose_name_plural = 'หน้าเนื้อหา'
+
+    def __str__(self):
+        return self.title
+
+    def get_absolute_url(self):
+        return reverse('shop:page', args=[self.slug])
+
+    @property
+    def blocks(self):
+        """Body split into ('h', text) headings and ('p', text) paragraphs for safe rendering (no HTML from the editor)."""
+        out, para = [], []
+        for line in self.body.splitlines():
+            if line.startswith('## '):
+                if para:
+                    out.append(('p', '\n'.join(para)))
+                    para = []
+                out.append(('h', line[3:].strip()))
+            elif line.strip():
+                para.append(line)
+            elif para:
+                out.append(('p', '\n'.join(para)))
+                para = []
+        if para:
+            out.append(('p', '\n'.join(para)))
+        return out
